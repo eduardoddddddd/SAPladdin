@@ -1,4 +1,6 @@
 from pathlib import Path
+import shutil
+from uuid import uuid4
 
 import pytest
 
@@ -34,9 +36,16 @@ class _FakeSSHClient:
 
 
 @pytest.fixture()
-def allowed_tmp(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
-    monkeypatch.setattr(filesystem, "_allowed", lambda: [str(tmp_path)])
-    return tmp_path
+def allowed_tmp(monkeypatch: pytest.MonkeyPatch) -> Path:
+    temp_root = Path(__file__).resolve().parent / "_tmp"
+    temp_root.mkdir(exist_ok=True)
+    test_dir = temp_root / f"case_{uuid4().hex}"
+    test_dir.mkdir()
+    monkeypatch.setattr(filesystem, "_allowed", lambda: [str(test_dir)])
+    try:
+        yield test_dir
+    finally:
+        shutil.rmtree(test_dir, ignore_errors=True)
 
 
 @pytest.mark.asyncio
@@ -129,3 +138,57 @@ async def test_sap_list_instances_reuses_existing_connection(monkeypatch: pytest
     result = await sap_basis.sap_list_instances(alias="sapapp1")
 
     assert "DVEBMGS00" in result
+
+
+def test_hana_load_config_falls_back_to_desktopcommanderpy(monkeypatch: pytest.MonkeyPatch) -> None:
+    from core.tools import hana
+    import builtins
+
+    fake_config = Path(r"C:\Users\Edu\DesktopCommanderPy\config\hana_config.yaml")
+    yaml_text = (
+        "hana:\n"
+        "  host: test.example.com\n"
+        "  port: 443\n"
+        "  user: DBADMIN\n"
+        "  password: secret\n"
+        "  sslValidateCertificate: false\n"
+    )
+
+    monkeypatch.setattr(hana, "_candidate_config_paths", lambda: [fake_config])
+    monkeypatch.setattr(Path, "exists", lambda self: str(self) == str(fake_config))
+    original_open = builtins.open
+
+    def fake_open(path, *args, **kwargs):
+        if str(path) == str(fake_config):
+            from io import StringIO
+
+            return StringIO(yaml_text)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+
+    cfg = hana._load_hana_config()
+
+    assert cfg["host"] == "test.example.com"
+    assert cfg["sslValidateCertificate"] is False
+
+
+def test_hana_safe_identifier_rejects_unsafe_names() -> None:
+    from core.tools import hana
+
+    with pytest.raises(ValueError):
+        hana._safe_identifier("BAD-NAME", "schema")
+
+
+def test_mssql_safe_identifier_rejects_unsafe_names() -> None:
+    from core.tools import mssql
+
+    with pytest.raises(ValueError):
+        mssql._safe_identifier("master]; DROP TABLE x;--", "database")
+
+
+def test_oracle_safe_identifier_rejects_unsafe_names() -> None:
+    from core.tools import oracle
+
+    with pytest.raises(ValueError):
+        oracle._safe_identifier("SAPR3; DROP TABLE USERS", "owner")

@@ -18,7 +18,7 @@ C:\Users\Edu\SAPladdin\
 https://github.com/eduardoddddddd/SAPladdin
 (repo creado manualmente por el usuario en GitHub)
 
-## Estado actual: SESIÓN 4 COMPLETADA — 2026-03-29
+## Estado actual: SESIÓN 5 COMPLETADA — 2026-03-29
 ### Ficheros creados y COMPLETOS ✅
 - .gitignore
 - pyproject.toml
@@ -60,6 +60,15 @@ https://github.com/eduardoddddddd/SAPladdin
   - `sap_list_instances`
   - `sapcontrol_get_process_list`
   - `sap_check_work_processes`
+- HANA endurecido en sesión 5:
+  - validación de identificadores (`schema`, `table_name`)
+  - filtros parametrizados en búsquedas
+  - `hana_config.yaml` de `DesktopCommanderPy` reutilizable como fallback
+- Oracle/MSSQL endurecidos en sesión 5:
+  - validación de identificadores
+  - menos interpolación directa en metadata queries
+- `tests/conftest.py` añadido para forzar imports del repo correcto cuando se usa el venv de DesktopCommanderPy
+- Suite actual: 11 tests pasando
 
 ### Ficheros PENDIENTES ❌
 - config/hosts.yaml        ← el usuario debe crearlo desde hosts.yaml.example (NO va al repo)
@@ -123,15 +132,23 @@ python main.py   # stdio para Claude Desktop
 - comprobación manual de `ssh_connect(alias='missing-host')` → devuelve mensaje claro
 - `python -c "from core.server import get_server"` sigue fallando en este entorno actual porque falta `fastmcp` instalado
 
+## Verificaciones ejecutadas en sesión 5
+- `C:\Users\Edu\DesktopCommanderPy\.venv\Scripts\python.exe -c "from core.server import get_server"` → OK (`FastMCP`)
+- `pytest` sobre `SAPladdin/tests` usando el venv de DesktopCommanderPy → `11 passed`
+- intento real de `hana_test_connection()` usando fallback a `DesktopCommanderPy/config/hana_config.yaml`:
+  - carga de configuración: OK
+  - intento de red: OK
+  - fallo actual: SSL del cliente `No valid certificate specified`
+
 ## Próxima sesión — tareas pendientes por orden
 1. Crear/activar venv e instalar dependencias con `scripts\_install.bat`
-2. Verificar import real del servidor: `python -c "from core.server import get_server; print(type(get_server()).__name__)"`
-3. Ejecutar `pytest`
-4. Añadir smoke tests de `core.server` con `fastmcp` instalado
-5. Endurecer SQL interpolado en `core/tools/hana.py`, `core/tools/oracle.py` y `core/tools/mssql.py`
-6. Añadir primeras tools SAP por SSH:
-   - hechas en sesión 5, falta validación real contra host SAP
-7. Evaluar futura integración RFC (`pyrfc`) solo si hay SDK disponible
+2. Resolver SSL HANA en `hana_config.yaml`:
+   - revisar trust store/certificado
+   - o valorar `sslValidateCertificate: false` solo si aceptas ese tradeoff
+3. Añadir smoke tests de `core.server` con registro real de tools
+4. Validar `sapcontrol_*` contra un host SAP real
+5. Completar endurecimiento de Oracle/MSSQL si se van a aceptar inputs menos controlados
+6. Evaluar futura integración RFC (`pyrfc`) solo si hay SDK disponible
 
 ## Decisiones de diseño tomadas
 - oracledb en thin mode (no necesita Oracle Client instalado) ← decisión clave

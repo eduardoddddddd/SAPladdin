@@ -60,3 +60,4 @@ select = ["E", "F", "W", "I", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "-p no:cacheprovider"

@@ -91,12 +91,15 @@ mssql_execute_query(alias="sqlprd", sql="SELECT name FROM sys.databases")
 - Cubren utilidades locales que no dependen de `fastmcp` ni drivers de BBDD
 - Para ejecutarlos: `pytest`
 - Si no tienes dependencias instaladas aún, usa primero `scripts\_install.bat`
+- Estado validado en esta sesión: `11 passed`
 
 ## Limitaciones actuales
 
 - `fastmcp`, `paramiko`, `oracledb`, `pyodbc` y `hdbcli` no vienen con Python base; deben instalarse en el venv
-- HANA sigue heredado casi literal de DesktopCommanderPy y merece una ronda posterior de endurecimiento
-- Oracle, MSSQL y HANA aún interpolan algunos identificadores SQL; conviene endurecerlos antes de exponer el servidor a uso amplio
+- HANA busca configuración en este orden: variables de entorno, `SAPladdin/config/hana_config.yaml`, `DesktopCommanderPy/config/hana_config.yaml`
+- HANA ya reutiliza como fallback la configuración de `DesktopCommanderPy`, útil si ambos repos conviven en la misma máquina
+- La validación real HANA llegó a abrir intento de conexión, pero en este entorno falla por SSL del cliente: `No valid certificate specified`
+- Oracle y MSSQL todavía necesitan una ronda más de endurecimiento si quieres abrirlos a uso amplio con entradas poco confiables
 
 ## Basado en
 

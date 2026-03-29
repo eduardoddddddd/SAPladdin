@@ -7,6 +7,7 @@ Soporta múltiples conexiones simultáneas identificadas por alias.
 Dependencia: pip install oracledb
 """
 import logging
+import re
 from typing import Annotated
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,25 @@ def _format_rows(cursor, max_rows: int) -> str:
     lines.append(sep)
     lines.append(f"({len(rows)} fila(s){'  [LÍMITE]' if len(rows) == max_rows else ''})")
     return "\n".join(lines)
+
+
+def _safe_identifier(name: str, label: str = "identifier") -> str:
+    value = name.strip()
+    if not value:
+        raise ValueError(f"{label} vacío.")
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_#$]*", value):
+        raise ValueError(
+            f"{label} inválido: {name!r}. Solo se permiten letras, números, _, # y $."
+        )
+    return value.upper()
+
+
+def _escape_like(filter_value: str) -> str:
+    return (
+        filter_value.replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
 
 
 async def oracle_test_connection(
@@ -143,9 +163,12 @@ async def oracle_list_schemas(
             FROM DBA_USERS U
             LEFT JOIN DBA_SEGMENTS S ON S.OWNER = U.USERNAME
         """
-        if filter_name: sql += f" WHERE UPPER(U.USERNAME) LIKE UPPER('%{filter_name}%')"
+        params: list[str] = []
+        if filter_name:
+            sql += " WHERE UPPER(U.USERNAME) LIKE UPPER(:filter_name) ESCAPE '\\'"
+            params.append(f"%{_escape_like(filter_name)}%")
         sql += " GROUP BY U.USERNAME, U.ACCOUNT_STATUS, U.DEFAULT_TABLESPACE ORDER BY U.USERNAME"
-        cursor.execute(sql)
+        cursor.execute(sql, params)
         return _format_rows(cursor, 200)
     except Exception as exc:
         return f"Error listando schemas Oracle [{alias}]: {exc}"
@@ -161,7 +184,10 @@ async def oracle_describe_table(
     if conn is None: return f"[ERROR] Sin conexión '{alias}'."
     try:
         cursor = conn.cursor()
-        owner_filter = f"AND C.OWNER = UPPER('{owner}')" if owner else "AND C.OWNER = USER"
+        effective_owner = _safe_identifier(owner, "owner") if owner else ""
+        effective_table = _safe_identifier(table_name, "table_name")
+        owner_filter = "AND C.OWNER = :owner" if effective_owner else "AND C.OWNER = USER"
+        pk_owner_filter = "AND CON.OWNER = :owner" if effective_owner else "AND CON.OWNER = USER"
         sql = f"""
             SELECT C.COLUMN_ID, C.COLUMN_NAME, C.DATA_TYPE,
                    NVL(TO_CHAR(C.DATA_LENGTH),'') AS LENGTH,
@@ -174,18 +200,21 @@ async def oracle_describe_table(
                 JOIN ALL_CONS_COLUMNS CC ON CON.CONSTRAINT_NAME = CC.CONSTRAINT_NAME
                     AND CON.OWNER = CC.OWNER
                 WHERE CON.CONSTRAINT_TYPE = 'P'
-                  AND UPPER(CC.TABLE_NAME) = UPPER('{table_name}')
-                  {owner_filter.replace('C.OWNER', 'CON.OWNER')}
+                  AND CC.TABLE_NAME = :table_name
+                  {pk_owner_filter}
             ) P ON C.COLUMN_NAME = P.COLUMN_NAME
-            WHERE UPPER(C.TABLE_NAME) = UPPER('{table_name}')
+            WHERE C.TABLE_NAME = :table_name
             {owner_filter}
             ORDER BY C.COLUMN_ID
         """
-        cursor.execute(sql)
+        params = {"table_name": effective_table}
+        if effective_owner:
+            params["owner"] = effective_owner
+        cursor.execute(sql, params)
         result = _format_rows(cursor, 500)
         cursor.close()
-        schema_label = owner or "current user"
-        return f"Tabla: {schema_label}.{table_name.upper()}\n\n{result}"
+        schema_label = effective_owner or "current user"
+        return f"Tabla: {schema_label}.{effective_table}\n\n{result}"
     except Exception as exc:
         return f"Error describiendo tabla Oracle [{alias}]: {exc}"
 

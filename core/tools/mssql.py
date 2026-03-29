@@ -9,6 +9,7 @@ Dependencia: pip install pyodbc
   Linux:   apt install unixodbc-dev + msodbcsql18
 """
 import logging
+import re
 from typing import Annotated
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,17 @@ def _format_rows(cursor, max_rows: int) -> str:
     lines.append(sep)
     lines.append(f"({len(rows)} fila(s){'  [LÍMITE]' if len(rows) == max_rows else ''})")
     return "\n".join(lines)
+
+
+def _safe_identifier(name: str, label: str = "identifier") -> str:
+    value = name.strip()
+    if not value:
+        raise ValueError(f"{label} vacío.")
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_#$]*", value):
+        raise ValueError(
+            f"{label} inválido: {name!r}. Solo se permiten letras, números, _, # y $."
+        )
+    return value
 
 
 async def mssql_test_connection(
@@ -180,11 +192,12 @@ async def mssql_describe_table(
     if conn is None: return f"[ERROR] Sin conexión '{alias}'."
     try:
         cursor = conn.cursor()
-        db_prefix = f"[{database}]." if database else ""
+        safe_database = _safe_identifier(database, "database") if database else ""
+        db_prefix = f"[{safe_database}]." if safe_database else ""
         # Separar schema.tabla si viene con punto
         parts = table_name.split(".")
-        schema = parts[0] if len(parts) > 1 else "dbo"
-        tname = parts[-1]
+        schema = _safe_identifier(parts[0], "schema") if len(parts) > 1 else "dbo"
+        tname = _safe_identifier(parts[-1], "table_name")
         sql = f"""
             SELECT c.COLUMN_NAME, c.DATA_TYPE,
                    ISNULL(CAST(c.CHARACTER_MAXIMUM_LENGTH AS VARCHAR), '') AS MAX_LEN,
@@ -197,13 +210,13 @@ async def mssql_describe_table(
                 JOIN {db_prefix}INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku
                     ON tc.CONSTRAINT_NAME = ku.CONSTRAINT_NAME
                 WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
-                  AND ku.TABLE_NAME = '{tname}'
-                  AND ku.TABLE_SCHEMA = '{schema}'
+                  AND ku.TABLE_NAME = ?
+                  AND ku.TABLE_SCHEMA = ?
             ) pk ON c.COLUMN_NAME = pk.COLUMN_NAME
-            WHERE c.TABLE_NAME = '{tname}' AND c.TABLE_SCHEMA = '{schema}'
+            WHERE c.TABLE_NAME = ? AND c.TABLE_SCHEMA = ?
             ORDER BY c.ORDINAL_POSITION
         """
-        cursor.execute(sql)
+        cursor.execute(sql, (tname, schema, tname, schema))
         result = _format_rows(cursor, 500)
         cursor.close()
         return f"Tabla: {schema}.{tname}\n\n{result}"

@@ -1,38 +1,36 @@
-﻿"""
-DesktopCommanderPy - Tools de gestión SAP HANA Cloud (hdbcli).
+"""
+SAPladdin - Tools de gestión SAP HANA Cloud (hdbcli).
 
-Permite conectar, consultar y administrar una instancia de SAP HANA Cloud
-(BTP Free Tier o cualquier HANA Cloud) desde Claude vía MCP.
-
-Credenciales: se cargan desde variables de entorno o desde el fichero
-config/hana_config.yaml (nunca hardcodeadas en código).
-
-Seguridad:
-  - Las credenciales NUNCA se muestran en output ni en logs.
-  - Las queries DDL destructivas (DROP, TRUNCATE, DELETE sin WHERE) tienen
-    flag de confirmación explícita.
-  - Límite de filas configurable para evitar volcar tablas enteras.
-
-Dependencia: pip install hdbcli
+Permite conectar, consultar y administrar SAP HANA Cloud desde SAPladdin.
+Puede reutilizar la configuración local del propio proyecto y, como fallback,
+la de DesktopCommanderPy para facilitar migración entre ambos repos.
 """
 
 import logging
 import os
+import re
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Config y credenciales
-# ---------------------------------------------------------------------------
+_PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+
+def _candidate_config_paths() -> list[Path]:
+    return [
+        _PROJECT_ROOT / "config" / "hana_config.yaml",
+        Path.home() / "DesktopCommanderPy" / "config" / "hana_config.yaml",
+    ]
+
 
 def _load_hana_config() -> dict:
     """
     Carga configuración HANA desde:
-      1. Variables de entorno (máxima prioridad)
-      2. config/hana_config.yaml
-      3. Defaults vacíos (el usuario deberá configurar)
+      1. Variables de entorno
+      2. config/hana_config.yaml de SAPladdin
+      3. config/hana_config.yaml de DesktopCommanderPy
+      4. Defaults vacíos
     """
     config = {
         "host": "",
@@ -45,7 +43,6 @@ def _load_hana_config() -> dict:
         "schema": "",
     }
 
-    # 1. Variables de entorno
     env_map = {
         "HANA_HOST": "host",
         "HANA_PORT": "port",
@@ -58,20 +55,21 @@ def _load_hana_config() -> dict:
         if val:
             config[cfg_key] = int(val) if cfg_key == "port" else val
 
-    # 2. YAML si existe
-    yaml_path = Path(__file__).parent.parent.parent / "config" / "hana_config.yaml"
-    if yaml_path.exists():
+    for yaml_path in _candidate_config_paths():
+        if not yaml_path.exists():
+            continue
         try:
             import yaml
+
             with open(yaml_path, "r", encoding="utf-8") as f:
                 file_cfg = yaml.safe_load(f) or {}
             hana_section = file_cfg.get("hana", {})
-            for k, v in hana_section.items():
-                if k in config and v:
-                    config[k] = v
+            for key, value in hana_section.items():
+                if key in config and value not in ("", None):
+                    config[key] = value
             logger.debug("HANA config loaded from %s", yaml_path)
         except Exception as exc:
-            logger.warning("Could not load hana_config.yaml: %s", exc)
+            logger.warning("Could not load %s: %s", yaml_path, exc)
 
     return config
 
@@ -93,7 +91,8 @@ def _get_connection():
             "Credenciales HANA no configuradas.\n"
             "Opciones:\n"
             "  A) Variables de entorno: HANA_HOST, HANA_USER, HANA_PASSWORD\n"
-            "  B) Fichero config/hana_config.yaml  (ver hana_config.yaml.example)"
+            "  B) Fichero config/hana_config.yaml de SAPladdin\n"
+            "  C) Fichero config/hana_config.yaml de DesktopCommanderPy"
         )
 
     conn = dbapi.connect(
@@ -115,7 +114,6 @@ def _format_results(cursor, max_rows: int) -> str:
     if not rows:
         return "(sin resultados)"
 
-    # Calcular anchos de columna
     widths = [len(c) for c in cols]
     str_rows = []
     for row in rows:
@@ -134,16 +132,37 @@ def _format_results(cursor, max_rows: int) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# hana_test_connection
-# ---------------------------------------------------------------------------
+def _safe_identifier(name: str, label: str = "identifier") -> str:
+    value = name.strip()
+    if not value:
+        raise ValueError(f"{label} vacío.")
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_#$]*", value):
+        raise ValueError(
+            f"{label} inválido: {name!r}. Solo se permiten letras, números, _, # y $."
+        )
+    return value.upper()
+
+
+def _escape_like(filter_value: str) -> str:
+    return (
+        filter_value.replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+
+
+def _effective_schema(cursor, cfg: dict, schema: str) -> str:
+    if schema:
+        return _safe_identifier(schema, "schema")
+    configured = cfg.get("schema", "")
+    if configured:
+        return _safe_identifier(configured, "schema")
+    cursor.execute("SELECT CURRENT_SCHEMA FROM DUMMY")
+    return _safe_identifier(cursor.fetchone()[0], "schema")
+
 
 async def hana_test_connection() -> str:
-    """Prueba la conexión a SAP HANA Cloud y devuelve información del servidor.
-
-    Verifica credenciales, versión de HANA, usuario conectado y schema actual.
-    No devuelve nunca la contraseña ni datos sensibles.
-    """
+    """Prueba la conexión a SAP HANA Cloud y devuelve información del servidor."""
     try:
         conn, cfg = _get_connection()
         cursor = conn.cursor()
@@ -176,29 +195,17 @@ async def hana_test_connection() -> str:
         return f"✗ Error de conexión: {exc}"
 
 
-# ---------------------------------------------------------------------------
-# hana_execute_query
-# ---------------------------------------------------------------------------
-
 async def hana_execute_query(
     sql: Annotated[str, "Sentencia SQL a ejecutar (SELECT, CALL, etc.). Una sola sentencia."],
     schema: Annotated[str, "Schema a usar. Vacío = usar el configurado por defecto."] = "",
     max_rows: Annotated[int, "Máximo de filas a devolver. Default 200."] = 200,
 ) -> str:
-    """Ejecuta una sentencia SQL en SAP HANA Cloud y devuelve los resultados.
-
-    Para consultas SELECT devuelve una tabla formateada con los resultados.
-    Para INSERT/UPDATE/DELETE devuelve las filas afectadas.
-    Para CALL (stored procedures) devuelve el resultado del procedure.
-
-    El número de filas está limitado para evitar volcar tablas enteras.
-    Usa max_rows para ajustar el límite.
-    """
+    """Ejecuta una sentencia SQL en SAP HANA Cloud y devuelve los resultados."""
     try:
         conn, cfg = _get_connection()
         cursor = conn.cursor()
 
-        effective_schema = schema or cfg.get("schema", "")
+        effective_schema = _effective_schema(cursor, cfg, schema) if schema or cfg.get("schema") else ""
         if effective_schema:
             cursor.execute(f'SET SCHEMA "{effective_schema}"')
 
@@ -220,17 +227,10 @@ async def hana_execute_query(
         return f"Error ejecutando SQL: {exc}\n\nSQL: {sql}"
 
 
-# ---------------------------------------------------------------------------
-# hana_list_schemas
-# ---------------------------------------------------------------------------
-
 async def hana_list_schemas(
     filter_name: Annotated[str, "Filtro por nombre de schema (substring). Vacío = todos los visibles."] = "",
 ) -> str:
-    """Lista los schemas visibles para el usuario actual en SAP HANA Cloud.
-
-    Muestra nombre del schema, propietario y si es un schema de sistema.
-    """
+    """Lista los schemas visibles para el usuario actual en SAP HANA Cloud."""
     try:
         conn, _ = _get_connection()
         cursor = conn.cursor()
@@ -242,11 +242,13 @@ async def hana_list_schemas(
             FROM SYS.SCHEMAS
             WHERE HAS_PRIVILEGES = 'TRUE'
         """
+        params: list[str] = []
         if filter_name:
-            sql += f" AND UPPER(SCHEMA_NAME) LIKE UPPER('%{filter_name}%')"
+            sql += " AND UPPER(SCHEMA_NAME) LIKE UPPER(?) ESCAPE '\\'"
+            params.append(f"%{_escape_like(filter_name)}%")
         sql += " ORDER BY IS_SYSTEM, SCHEMA_NAME"
 
-        cursor.execute(sql)
+        cursor.execute(sql, params)
         result = _format_results(cursor, 200)
         cursor.close()
         conn.close()
@@ -256,45 +258,37 @@ async def hana_list_schemas(
         return f"Error listando schemas: {exc}"
 
 
-# ---------------------------------------------------------------------------
-# hana_list_tables
-# ---------------------------------------------------------------------------
-
 async def hana_list_tables(
-    schema: Annotated[str, "Schema del que listar tablas. Vacío = schema actual del usuario."],
+    schema: Annotated[str, "Schema del que listar tablas. Vacío = schema actual del usuario."] = "",
     filter_name: Annotated[str, "Filtro por nombre de tabla (substring, case-insensitive)."] = "",
     table_type: Annotated[str, "Tipo: TABLE, VIEW, CALC VIEW, o vacío para todos."] = "",
 ) -> str:
-    """Lista tablas, vistas y Calculation Views de un schema en SAP HANA Cloud.
-
-    Muestra nombre, tipo, número de columnas y comentario si existe.
-    """
+    """Lista tablas, vistas y Calculation Views de un schema en SAP HANA Cloud."""
     try:
         conn, cfg = _get_connection()
         cursor = conn.cursor()
 
-        effective_schema = schema or cfg.get("schema", "")
-        if not effective_schema:
-            cursor.execute("SELECT CURRENT_SCHEMA FROM DUMMY")
-            effective_schema = cursor.fetchone()[0]
-
-        sql = f"""
+        effective_schema = _effective_schema(cursor, cfg, schema)
+        sql = """
             SELECT T.TABLE_NAME, T.TABLE_TYPE,
                    COUNT(C.COLUMN_NAME) AS NUM_COLUMNS,
                    T.COMMENTS
             FROM SYS.TABLES T
             LEFT JOIN SYS.TABLE_COLUMNS C
                 ON T.SCHEMA_NAME = C.SCHEMA_NAME AND T.TABLE_NAME = C.TABLE_NAME
-            WHERE T.SCHEMA_NAME = '{effective_schema}'
+            WHERE T.SCHEMA_NAME = ?
         """
+        params: list[str] = [effective_schema]
         if filter_name:
-            sql += f" AND UPPER(T.TABLE_NAME) LIKE UPPER('%{filter_name}%')"
+            sql += " AND UPPER(T.TABLE_NAME) LIKE UPPER(?) ESCAPE '\\'"
+            params.append(f"%{_escape_like(filter_name)}%")
         if table_type:
-            sql += f" AND T.TABLE_TYPE = '{table_type.upper()}'"
+            sql += " AND T.TABLE_TYPE = ?"
+            params.append(table_type.strip().upper())
 
         sql += " GROUP BY T.TABLE_NAME, T.TABLE_TYPE, T.COMMENTS ORDER BY T.TABLE_TYPE, T.TABLE_NAME"
 
-        cursor.execute(sql)
+        cursor.execute(sql, params)
         result = _format_results(cursor, 300)
         cursor.close()
         conn.close()
@@ -304,29 +298,19 @@ async def hana_list_tables(
         return f"Error listando tablas: {exc}"
 
 
-# ---------------------------------------------------------------------------
-# hana_describe_table
-# ---------------------------------------------------------------------------
-
 async def hana_describe_table(
     table_name: Annotated[str, "Nombre de la tabla o vista."],
     schema: Annotated[str, "Schema. Vacío = schema actual."] = "",
 ) -> str:
-    """Describe la estructura de una tabla en SAP HANA Cloud.
-
-    Devuelve columnas con tipo de dato, longitud, nullable, clave primaria
-    y comentario de columna si existe. Equivale a DESC table en SQL*Plus.
-    """
+    """Describe la estructura de una tabla en SAP HANA Cloud."""
     try:
         conn, cfg = _get_connection()
         cursor = conn.cursor()
 
-        effective_schema = schema or cfg.get("schema", "")
-        if not effective_schema:
-            cursor.execute("SELECT CURRENT_SCHEMA FROM DUMMY")
-            effective_schema = cursor.fetchone()[0]
+        effective_schema = _effective_schema(cursor, cfg, schema)
+        effective_table = _safe_identifier(table_name, "table_name")
 
-        sql = f"""
+        sql = """
             SELECT
                 C.POSITION,
                 C.COLUMN_NAME,
@@ -341,58 +325,49 @@ async def hana_describe_table(
             FROM SYS.TABLE_COLUMNS C
             LEFT JOIN (
                 SELECT COLUMN_NAME FROM SYS.CONSTRAINTS
-                WHERE SCHEMA_NAME = '{effective_schema}'
-                  AND TABLE_NAME  = '{table_name.upper()}'
+                WHERE SCHEMA_NAME = ?
+                  AND TABLE_NAME  = ?
                   AND IS_PRIMARY_KEY = 'TRUE'
             ) K ON C.COLUMN_NAME = K.COLUMN_NAME
-            WHERE C.SCHEMA_NAME = '{effective_schema}'
-              AND C.TABLE_NAME  = '{table_name.upper()}'
+            WHERE C.SCHEMA_NAME = ?
+              AND C.TABLE_NAME  = ?
             ORDER BY C.POSITION
         """
-        cursor.execute(sql)
+        cursor.execute(sql, [effective_schema, effective_table, effective_schema, effective_table])
         result = _format_results(cursor, 500)
         cursor.close()
         conn.close()
-        return f"Tabla: {effective_schema}.{table_name.upper()}\n\n{result}"
+        return f"Tabla: {effective_schema}.{effective_table}\n\n{result}"
 
     except Exception as exc:
         return f"Error describiendo tabla: {exc}"
 
 
-# ---------------------------------------------------------------------------
-# hana_get_row_count
-# ---------------------------------------------------------------------------
-
 async def hana_get_row_count(
     tables: Annotated[str, "Tabla o tablas separadas por coma. Ej: ORDERS,ITEMS,CUSTOMERS"],
     schema: Annotated[str, "Schema. Vacío = schema actual."] = "",
 ) -> str:
-    """Devuelve el número de filas de una o varias tablas.
-
-    Rápido para monitorización — usa M_TABLE_STATISTICS en lugar de COUNT(*).
-    """
+    """Devuelve el número de filas de una o varias tablas."""
     try:
         conn, cfg = _get_connection()
         cursor = conn.cursor()
 
-        effective_schema = schema or cfg.get("schema", "")
-        if not effective_schema:
-            cursor.execute("SELECT CURRENT_SCHEMA FROM DUMMY")
-            effective_schema = cursor.fetchone()[0]
+        effective_schema = _effective_schema(cursor, cfg, schema)
+        table_list = [_safe_identifier(t, "table_name") for t in tables.split(",") if t.strip()]
+        if not table_list:
+            return "Error obteniendo row counts: no se proporcionaron tablas válidas."
 
-        table_list = [t.strip().upper() for t in tables.split(",")]
-        in_clause = ", ".join(f"'{t}'" for t in table_list)
-
+        placeholders = ", ".join("?" for _ in table_list)
         sql = f"""
             SELECT TABLE_NAME,
                    TO_BIGINT(RECORD_COUNT) AS ROW_COUNT,
                    TO_BIGINT(TABLE_SIZE / 1024 / 1024) AS SIZE_MB
             FROM SYS.M_TABLE_STATISTICS
-            WHERE SCHEMA_NAME = '{effective_schema}'
-              AND TABLE_NAME IN ({in_clause})
+            WHERE SCHEMA_NAME = ?
+              AND TABLE_NAME IN ({placeholders})
             ORDER BY TABLE_NAME
         """
-        cursor.execute(sql)
+        cursor.execute(sql, [effective_schema, *table_list])
         result = _format_results(cursor, 100)
         cursor.close()
         conn.close()
@@ -402,31 +377,23 @@ async def hana_get_row_count(
         return f"Error obteniendo row counts: {exc}"
 
 
-# ---------------------------------------------------------------------------
-# hana_get_system_info
-# ---------------------------------------------------------------------------
-
 async def hana_get_system_info() -> str:
-    """Devuelve información del sistema SAP HANA Cloud: memoria, CPU, alertas activas.
-
-    Útil para monitorización básica del Free Tier (que tiene límites de recursos).
-    """
+    """Devuelve información del sistema SAP HANA Cloud: memoria, CPU, alertas activas."""
     try:
         conn, _ = _get_connection()
         cursor = conn.cursor()
         sections = []
 
-        # System overview (compatible HANA 2026.x)
         cursor.execute("SELECT SECTION, NAME, STATUS, VALUE FROM SYS.M_SYSTEM_OVERVIEW ORDER BY SECTION, NAME")
         rows = cursor.fetchall()
         sections.append("=== SYSTEM OVERVIEW ===")
         current_section = None
-        for r in rows:
-            if r[0] != current_section:
-                current_section = r[0]
-                sections.append(f'  [{current_section}]')
-            status_str = f' [{r[2]}]' if r[2] else ''
-            sections.append(f'    {r[1]}: {r[3]}{status_str}')
+        for row in rows:
+            if row[0] != current_section:
+                current_section = row[0]
+                sections.append(f"  [{current_section}]")
+            status_str = f" [{row[2]}]" if row[2] else ""
+            sections.append(f"    {row[1]}: {row[3]}{status_str}")
 
         cursor.execute("SELECT COUNT(*) FROM SYS.M_CONNECTIONS WHERE CONNECTION_STATUS = 'RUNNING'")
         active_conn = cursor.fetchone()[0]
@@ -440,19 +407,11 @@ async def hana_get_system_info() -> str:
         return f"Error obteniendo info del sistema: {exc}"
 
 
-# ---------------------------------------------------------------------------
-# hana_execute_ddl
-# ---------------------------------------------------------------------------
-
 async def hana_execute_ddl(
     sql: Annotated[str, "Sentencia DDL (CREATE, ALTER, DROP, GRANT, REVOKE...)."],
     confirm: Annotated[bool, "Debes pasar confirm=True explícitamente para ejecutar DDL. Medida de seguridad."] = False,
 ) -> str:
-    """Ejecuta una sentencia DDL en SAP HANA Cloud (CREATE, ALTER, DROP, GRANT...).
-
-    REQUIERE confirm=True explícito — protección contra ejecuciones accidentales.
-    DROP y TRUNCATE son irreversibles. Úsalo con cuidado.
-    """
+    """Ejecuta una sentencia DDL en SAP HANA Cloud (CREATE, ALTER, DROP, GRANT...)."""
     if not confirm:
         return (
             "⚠ Operación DDL NO ejecutada.\n"
