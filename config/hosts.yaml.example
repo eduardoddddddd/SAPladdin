@@ -1,0 +1,111 @@
+# SAPladdin - Inventario de hosts
+# Copia este fichero a hosts.yaml y rellena con tus sistemas reales.
+# IMPORTANTE: hosts.yaml está en .gitignore — NUNCA lo subas al repo.
+#             Contiene IPs, usuarios y contraseñas de producción.
+
+hosts:
+
+  # ─── SERVIDORES LINUX (SSH) ────────────────────────────────────────────
+  - name: sap_prod_appserver
+    alias: sapapp1                  # alias corto para usar en tools
+    type: linux_ssh
+    ip: 192.168.1.10
+    port: 22
+    user: root
+    auth: key                       # 'key' o 'password'
+    key_path: ~/.ssh/id_rsa         # ruta a clave privada
+    # password: ""                  # alternativa a key
+    tags: [sap, production, abap]
+    description: "SAP Production Application Server"
+
+  - name: sap_prod_dbserver
+    alias: sapdb1
+    type: linux_ssh
+    ip: 192.168.1.11
+    port: 22
+    user: oraprd                    # usuario oracle en Linux
+    auth: password
+    password: ""                    # rellena aquí o usa variable de entorno
+    tags: [oracle, sap, production, db]
+    description: "SAP Production DB Server (Oracle)"
+
+  - name: sap_dev_appserver
+    alias: sapdev1
+    type: linux_ssh
+    ip: 192.168.1.20
+    port: 22
+    user: root
+    auth: key
+    key_path: ~/.ssh/id_rsa
+    tags: [sap, development, abap]
+    description: "SAP Development Application Server"
+
+  # ─── ORACLE DATABASES ──────────────────────────────────────────────────
+  - name: oracle_prod
+    alias: oraprd
+    type: oracle
+    host: 192.168.1.11              # o mismo que el Linux si es local
+    port: 1521
+    service: PRD                    # service name (no SID)
+    user: system
+    password: ""
+    tags: [oracle, production, db]
+    description: "Oracle DB SAP PRD"
+
+  - name: oracle_dev
+    alias: oradev
+    type: oracle
+    host: 192.168.1.21
+    port: 1521
+    service: DEV
+    user: system
+    password: ""
+    tags: [oracle, development, db]
+    description: "Oracle DB SAP DEV"
+
+  # ─── SQL SERVER ────────────────────────────────────────────────────────
+  - name: sqlserver_prod
+    alias: sqlprd
+    type: mssql
+    host: 192.168.1.30
+    port: 1433
+    database: master
+    user: sa
+    password: ""
+    tags: [sqlserver, production]
+    description: "SQL Server Producción"
+
+  - name: sqlserver_dev
+    alias: sqldev
+    type: mssql
+    host: 192.168.1.31
+    port: 1433
+    database: master
+    user: sa
+    password: ""
+    tags: [sqlserver, development]
+    description: "SQL Server Desarrollo"
+
+  # ─── SAP HANA CLOUD ────────────────────────────────────────────────────
+  - name: hana_cloud_prod
+    alias: hanacp
+    type: hana
+    host: "xxxxxxxx.hanacloud.ondemand.com"
+    port: 443
+    user: DBADMIN
+    password: ""
+    schema: ""
+    tags: [hana, production, cloud]
+    description: "SAP HANA Cloud Production"
+
+  # ─── WINDOWS SERVERS (SSH habilitado) ──────────────────────────────────
+  - name: windows_sql_server
+    alias: winsql1
+    type: windows_ssh
+    ip: 192.168.1.30
+    port: 22                        # OpenSSH en Windows
+    user: Administrator
+    auth: password
+    password: ""
+    tags: [windows, sqlserver, production]
+    description: "Windows Server con SQL Server"

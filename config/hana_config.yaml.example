@@ -1,0 +1,34 @@
+# DesktopCommanderPy - Configuración SAP HANA Cloud
+#
+# OPCIÓN A (recomendada): Variables de entorno
+#   Las variables de entorno tienen prioridad sobre este fichero.
+#   Defínelas en el sistema o en el env del claude_desktop_config.json:
+#
+#   HANA_HOST     = tu-instancia.hanacloud.ondemand.com
+#   HANA_PORT     = 443
+#   HANA_USER     = DBADMIN
+#   HANA_PASSWORD = tu_password
+#   HANA_SCHEMA   = MI_SCHEMA   (opcional)
+#
+# OPCIÓN B: Este fichero
+#   Rellena los campos y renombra a hana_config.yaml
+#   NUNCA subas este fichero a git con credenciales reales.
+#   Ya está en .gitignore como config/hana_config.yaml
+#
+# Cómo obtener el host en BTP:
+#   BTP Cockpit → tu subaccount → Instances → SAP HANA Cloud
+#   → clic en la instancia → "Open SAP HANA Database Explorer"
+#   El host está en la URL: xxxxxxxx-xxxx.hana.trial-us10.hanacloud.ondemand.com
+
+hana:
+  host: "xxxxxxxx-xxxx.hana.trial-us10.hanacloud.ondemand.com"
+  port: 443
+  user: "DBADMIN"
+  password: "tu_password_aqui"
+  schema: ""          # schema por defecto, puede dejarse vacío
+  encrypt: true       # siempre true para HANA Cloud
+  sslValidateCertificate: true
+
+  # Límite de filas devueltas en consultas SELECT
+  # Para exploración usa 200; para análisis puedes subir a 1000
+  max_rows: 200

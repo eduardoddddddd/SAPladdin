@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sapladdin"
+version = "0.1.0"
+description = "SAPladdin - MCP Server definitivo para SAP Basis, Linux Admin, Windows Admin y DBAs"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Eduardo Abdul Malik Arias" }
+]
+keywords = ["mcp", "sap", "basis", "linux", "oracle", "hana", "sqlserver", "admin", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "fastmcp>=2.0.0",
+    "pyyaml>=6.0",
+    "psutil>=5.9",
+    "aiofiles>=23.0",
+    "pathspec>=0.12",
+    # SSH
+    "paramiko>=3.4",
+    # Oracle (thin mode — no Oracle Client needed)
+    "oracledb>=2.0",
+    # SQL Server
+    "pyodbc>=5.0",
+    # HANA Cloud
+    "hdbcli>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+sapladdin = "main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["core"]
+include = ["main.py", "core/**", "config/**"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

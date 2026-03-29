@@ -1,0 +1,63 @@
+# SAPladdin - Security Configuration
+# Personaliza los directorios permitidos y comandos bloqueados.
+
+security:
+  # Directorios donde las filesystem tools pueden operar.
+  allowed_directories:
+    - "C:/Users/Edu/Documents"
+    - "C:/Users/Edu/Desktop"
+    - "C:/Users/Edu/Downloads"
+    - "C:/Users/Edu/SAPladdin"
+    - "C:/Users/Edu/Documents/ClaudeWork"
+    # Añade aquí directorios adicionales según necesites:
+    # - "C:/sap_scripts"
+    # - "C:/oracle_scripts"
+
+  # Comandos NUNCA ejecutados, sin importar el contexto.
+  blocked_commands:
+    # Disco/particiones
+    - "format c:"
+    - "format d:"
+    - "diskpart"
+    - "fdisk"
+    - "dd"
+    # Usuarios/permisos
+    - "net user"
+    - "net localgroup"
+    - "icacls"
+    - "takeown"
+    # Sistema/registro
+    - "reg add"
+    - "reg delete"
+    - "regedit"
+    - "bcdedit"
+    # Red/firewall
+    - "netsh"
+    - "iptables"
+    # Apagado
+    - "shutdown"
+    - "restart-computer"
+    - "halt"
+    # Seguridad
+    - "mimikatz"
+    - "cipher"
+
+  max_file_size_bytes: 10485760   # 10 MB
+  max_read_lines: 2000
+
+  write_blocked_extensions:
+    - ".exe"
+    - ".dll"
+    - ".sys"
+
+terminal:
+  windows_shell: "powershell.exe"
+  linux_shell:   "/bin/bash"
+  macos_shell:   "/bin/zsh"
+  default_timeout_seconds: 60     # más largo que DCPy para comandos SAP
+  max_output_chars: 500000
+
+logging:
+  level: "INFO"
+  log_to_file: false
+  log_file: "logs/sapladdin.log"
