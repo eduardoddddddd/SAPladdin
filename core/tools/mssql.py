@@ -222,3 +222,104 @@ async def mssql_describe_table(
         return f"Tabla: {schema}.{tname}\n\n{result}"
     except Exception as exc:
         return f"Error describiendo tabla SQL Server [{alias}]: {exc}"
+
+
+async def mssql_check_agent_jobs(
+    alias: Annotated[str, "Alias de la conexión SQL Server."],
+    days_back: Annotated[int, "Historial de los últimos N días. Default 1."] = 1,
+    filter_name: Annotated[str, "Filtrar por nombre de job (substring). Vacío = todos."] = "",
+    only_failed: Annotated[bool, "True = mostrar solo jobs fallidos. Default False."] = False,
+) -> str:
+    """Estado de SQL Server Agent Jobs: historial, éxitos/fallos, duración.
+
+    Consulta msdb.dbo.sysjobhistory + sysjobs.
+    Útil para verificar backups, mantenimiento y jobs programados.
+    """
+    conn = _mssql_pool.get(alias)
+    if conn is None:
+        return f"[ERROR] Sin conexión '{alias}'. Usa mssql_test_connection primero."
+    try:
+        cursor = conn.cursor()
+        sections = []
+
+        # Filtros dinámicos
+        name_filter = f"AND j.name LIKE ?" if filter_name else ""
+        status_filter = "AND h.run_status = 0" if only_failed else ""
+        params = []
+        if filter_name:
+            params.append(f"%{filter_name}%")
+
+        # Historial de jobs
+        cursor.execute(f"""
+            SELECT TOP 50
+                j.name AS JOB_NAME,
+                CASE h.run_status
+                    WHEN 0 THEN 'FAILED'
+                    WHEN 1 THEN 'SUCCEEDED'
+                    WHEN 2 THEN 'RETRY'
+                    WHEN 3 THEN 'CANCELLED'
+                    WHEN 4 THEN 'RUNNING'
+                    ELSE 'UNKNOWN'
+                END AS STATUS,
+                CONVERT(VARCHAR,
+                    DATEADD(s,
+                        (h.run_duration/10000*3600 + h.run_duration%10000/100*60 + h.run_duration%100),
+                        0), 108) AS DURATION_HMS,
+                CAST(h.run_date AS VARCHAR) AS RUN_DATE,
+                CAST(h.run_time AS VARCHAR) AS RUN_TIME,
+                LEFT(h.message, 100) AS MESSAGE
+            FROM msdb.dbo.sysjobhistory h
+            JOIN msdb.dbo.sysjobs j ON h.job_id = j.job_id
+            WHERE h.step_id = 0
+              AND CAST(
+                    CAST(h.run_date AS VARCHAR) AS DATE
+                  ) >= CAST(DATEADD(day, -{days_back}, GETDATE()) AS DATE)
+              {name_filter}
+              {status_filter}
+            ORDER BY h.run_date DESC, h.run_time DESC
+        """, params)
+        history = _format_rows(cursor, 50)
+        title = f"últimos {days_back} día(s)"
+        title += f" | filtro: {filter_name}" if filter_name else ""
+        title += " | solo FAILED" if only_failed else ""
+        sections.append(f"=== SQL AGENT JOBS ({title}) ===\n" + history)
+
+        # Resumen por estado
+        cursor.execute(f"""
+            SELECT
+                CASE h.run_status
+                    WHEN 0 THEN 'FAILED' WHEN 1 THEN 'SUCCEEDED'
+                    WHEN 2 THEN 'RETRY'  WHEN 3 THEN 'CANCELLED'
+                    ELSE 'OTHER'
+                END AS STATUS,
+                COUNT(*) AS COUNT
+            FROM msdb.dbo.sysjobhistory h
+            JOIN msdb.dbo.sysjobs j ON h.job_id = j.job_id
+            WHERE h.step_id = 0
+              AND CAST(CAST(h.run_date AS VARCHAR) AS DATE) >=
+                  CAST(DATEADD(day, -{days_back}, GETDATE()) AS DATE)
+              {name_filter}
+            GROUP BY h.run_status
+            ORDER BY STATUS
+        """, params)
+        summary = _format_rows(cursor, 10)
+        sections.append("=== RESUMEN POR ESTADO ===\n" + summary)
+
+        # Jobs activos ahora mismo
+        cursor.execute("""
+            SELECT j.name AS JOB_NAME, ja.start_execution_date AS STARTED_AT
+            FROM msdb.dbo.sysjobactivity ja
+            JOIN msdb.dbo.sysjobs j ON ja.job_id = j.job_id
+            WHERE ja.start_execution_date IS NOT NULL
+              AND ja.stop_execution_date IS NULL
+              AND ja.session_id = (
+                SELECT MAX(session_id) FROM msdb.dbo.sysjobactivity
+              )
+        """)
+        running = _format_rows(cursor, 10)
+        sections.append("=== JOBS EN EJECUCIÓN AHORA ===\n" + running)
+
+        cursor.close()
+        return "\n\n".join(sections)
+    except Exception as exc:
+        return f"Error mssql_check_agent_jobs [{alias}]: {exc}"

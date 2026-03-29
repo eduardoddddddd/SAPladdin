@@ -339,3 +339,74 @@ async def oracle_check_tablespace_sap(
         return "\n\n".join(sections)
     except Exception as exc:
         return f"Error en oracle_check_tablespace_sap [{alias}]: {exc}"
+
+
+async def oracle_backup_status(
+    alias: Annotated[str, "Alias de la conexión Oracle."],
+    days_back: Annotated[int, "Mostrar backups de los últimos N días. Default 7."] = 7,
+) -> str:
+    """Estado de backups RMAN: últimos jobs, éxitos/fallos, tamaño y duración.
+
+    Consulta V$RMAN_BACKUP_JOB_DETAILS. Útil para verificar que los backups
+    nocturnos de bases SAP se han completado correctamente.
+    """
+    from core.tools.oracle import _oracle_pool, _format_rows
+    conn = _oracle_pool.get(alias)
+    if conn is None:
+        return f"[ERROR] Sin conexión Oracle '{alias}'. Usa oracle_test_connection primero."
+    try:
+        cursor = conn.cursor()
+        sections = []
+
+        # Jobs RMAN recientes
+        cursor.execute(f"""
+            SELECT
+                TO_CHAR(START_TIME, 'YYYY-MM-DD HH24:MI') AS START_TIME,
+                TO_CHAR(END_TIME,   'YYYY-MM-DD HH24:MI') AS END_TIME,
+                STATUS,
+                INPUT_TYPE,
+                ROUND(INPUT_BYTES/1024/1024/1024, 2)  AS INPUT_GB,
+                ROUND(OUTPUT_BYTES/1024/1024/1024, 2) AS OUTPUT_GB,
+                ROUND(ELAPSED_SECONDS/60, 1)          AS DURATION_MIN,
+                COMPRESSION_RATIO
+            FROM V$RMAN_BACKUP_JOB_DETAILS
+            WHERE START_TIME >= SYSDATE - {days_back}
+            ORDER BY START_TIME DESC
+        """)
+        jobs = _format_rows(cursor, 30)
+        sections.append(f"=== JOBS RMAN (últimos {days_back} días) ===\n" + jobs)
+
+        # Resumen por estado
+        cursor.execute(f"""
+            SELECT STATUS, COUNT(*) AS NUM_JOBS,
+                   ROUND(SUM(INPUT_BYTES)/1024/1024/1024, 2) AS TOTAL_INPUT_GB
+            FROM V$RMAN_BACKUP_JOB_DETAILS
+            WHERE START_TIME >= SYSDATE - {days_back}
+            GROUP BY STATUS ORDER BY STATUS
+        """)
+        summary = _format_rows(cursor, 10)
+        sections.append("=== RESUMEN POR ESTADO ===\n" + summary)
+
+        # Último backup completo
+        cursor.execute("""
+            SELECT TO_CHAR(MAX(COMPLETION_TIME), 'YYYY-MM-DD HH24:MI:SS') AS LAST_FULL_BACKUP
+            FROM V$BACKUP_SET
+            WHERE BACKUP_TYPE = 'D' AND INCREMENTAL_LEVEL = 0
+        """)
+        row = cursor.fetchone()
+        last_full = row[0] if row and row[0] else "No encontrado"
+        sections.append(f"=== ÚLTIMO BACKUP COMPLETO: {last_full} ===")
+
+        # Archivelog gap check
+        cursor.execute("""
+            SELECT COUNT(*) AS MISSING_ARCHIVELOGS
+            FROM V$ARCHIVE_GAP
+        """)
+        gaps = cursor.fetchone()[0]
+        gap_status = f"⚠ {gaps} gaps detectados" if gaps > 0 else "✓ Sin gaps en archivelogs"
+        sections.append(f"=== ARCHIVELOGS: {gap_status} ===")
+
+        cursor.close()
+        return "\n\n".join(sections)
+    except Exception as exc:
+        return f"Error oracle_backup_status [{alias}]: {exc}"

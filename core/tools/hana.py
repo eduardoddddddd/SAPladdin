@@ -433,3 +433,89 @@ async def hana_execute_ddl(
 
     except Exception as exc:
         return f"Error ejecutando DDL: {exc}\n\nSQL: {sql}"
+
+
+async def hana_backup_catalog(
+    days_back: Annotated[int, "Mostrar backups de los últimos N días. Default 7."] = 7,
+    schema: Annotated[str, "Schema (ignorado, accede a SYS directamente)."] = "",
+    backup_type: Annotated[str, "Tipo: COMPLETE DATA BACKUP, LOG BACKUP, vacío = todos."] = "",
+) -> str:
+    """Catálogo de backups SAP HANA: estado, tipo, tamaño y duración.
+
+    Consulta M_BACKUP_CATALOG y M_BACKUP_CATALOG_FILES.
+    Útil para verificar backups nocturnos en landscapes HANA Cloud.
+    """
+    try:
+        conn, _ = _get_connection()
+        cursor = conn.cursor()
+        sections = []
+
+        # Backups recientes
+        type_filter = f" AND ENTRY_TYPE_NAME = ?" if backup_type else ""
+        params: list = []
+        if backup_type:
+            params.append(backup_type.upper())
+
+        sql = f"""
+            SELECT
+                TO_VARCHAR(SYS_START_TIME, 'YYYY-MM-DD HH24:MI') AS START_TIME,
+                TO_VARCHAR(SYS_END_TIME,   'YYYY-MM-DD HH24:MI') AS END_TIME,
+                ENTRY_TYPE_NAME AS TYPE,
+                STATE_NAME      AS STATUS,
+                ROUND(SECONDS_BETWEEN(SYS_START_TIME, SYS_END_TIME) / 60, 1) AS DURATION_MIN,
+                COMMENT
+            FROM SYS.M_BACKUP_CATALOG
+            WHERE SYS_START_TIME >= ADD_DAYS(NOW(), -{days_back})
+            {type_filter}
+            ORDER BY SYS_START_TIME DESC
+        """
+        cursor.execute(sql, params)
+        catalog = _format_results(cursor, 30)
+        sections.append(f"=== BACKUPS HANA (últimos {days_back} días) ===\n" + catalog)
+
+        # Resumen por estado
+        cursor.execute(f"""
+            SELECT STATE_NAME, ENTRY_TYPE_NAME, COUNT(*) AS NUM
+            FROM SYS.M_BACKUP_CATALOG
+            WHERE SYS_START_TIME >= ADD_DAYS(NOW(), -{days_back})
+            GROUP BY STATE_NAME, ENTRY_TYPE_NAME
+            ORDER BY STATE_NAME, ENTRY_TYPE_NAME
+        """)
+        summary = _format_results(cursor, 20)
+        sections.append("=== RESUMEN POR ESTADO ===\n" + summary)
+
+        # Último backup completo exitoso
+        cursor.execute("""
+            SELECT TO_VARCHAR(MAX(SYS_END_TIME), 'YYYY-MM-DD HH24:MI:SS')
+            FROM SYS.M_BACKUP_CATALOG
+            WHERE ENTRY_TYPE_NAME = 'COMPLETE DATA BACKUP'
+              AND STATE_NAME = 'successful'
+        """)
+        row = cursor.fetchone()
+        last_full = row[0] if row and row[0] else "No encontrado"
+        sections.append(f"=== ÚLTIMO BACKUP COMPLETO EXITOSO: {last_full} ===")
+
+        # Log backup lag (tiempo desde último log backup)
+        cursor.execute("""
+            SELECT
+                TO_VARCHAR(MAX(SYS_END_TIME), 'YYYY-MM-DD HH24:MI:SS') AS LAST_LOG_BACKUP,
+                ROUND(SECONDS_BETWEEN(MAX(SYS_END_TIME), NOW()) / 60, 1) AS MINUTES_AGO
+            FROM SYS.M_BACKUP_CATALOG
+            WHERE ENTRY_TYPE_NAME = 'LOG BACKUP'
+              AND STATE_NAME = 'successful'
+        """)
+        row = cursor.fetchone()
+        if row and row[0]:
+            lag_status = f"✓ Último log backup: {row[0]} (hace {row[1]} min)"
+            if row[1] and row[1] > 30:
+                lag_status = f"⚠ Último log backup: {row[0]} (hace {row[1]} min — posible retraso)"
+        else:
+            lag_status = "⚠ No se encontraron log backups recientes"
+        sections.append(f"=== LOG BACKUP LAG: {lag_status} ===")
+
+        cursor.close()
+        conn.close()
+        return "\n\n".join(sections)
+
+    except Exception as exc:
+        return f"Error hana_backup_catalog: {exc}"
