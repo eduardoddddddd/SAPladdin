@@ -43,6 +43,9 @@ try:
         ssh_connect, ssh_execute, ssh_upload, ssh_download,
         ssh_list_connections, ssh_disconnect,
     )
+    from core.tools.sap_basis import (
+        sap_list_instances, sapcontrol_get_process_list, sap_check_work_processes,
+    )
     _SSH_AVAILABLE = True
 except ImportError:
     _SSH_AVAILABLE = False
@@ -136,6 +139,9 @@ if _SSH_AVAILABLE:
     mcp.tool()(ssh_download)
     mcp.tool()(ssh_list_connections)
     mcp.tool()(ssh_disconnect)
+    mcp.tool()(sap_list_instances)
+    mcp.tool()(sapcontrol_get_process_list)
+    mcp.tool()(sap_check_work_processes)
 
 # ---------------------------------------------------------------------------
 # Registro: Oracle DB (si oracledb está instalado)

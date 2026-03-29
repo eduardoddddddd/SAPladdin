@@ -21,6 +21,12 @@ def _allowed() -> list[str]: return _cfg()["security"]["allowed_directories"]
 def _blocked_ext() -> list[str]: return _cfg()["security"].get("write_blocked_extensions", [])
 def _max_lines() -> int: return _cfg()["security"].get("max_read_lines", 2000)
 
+
+def _as_bool(value: str | bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("true", "1", "yes", "y")
+
 def _human_size(n: int) -> str:
     for unit in ("B", "KB", "MB", "GB"):
         if n < 1024: return f"{n:.1f} {unit}"
@@ -122,7 +128,8 @@ async def search_files(
     resolved = resolve_and_validate_path(root, _allowed())
     if not resolved.is_dir():
         raise ValueError(f"'{resolved}' is not a directory.")
-    flag = 0 if str(case_sensitive).lower() not in ("true", "1", "yes") else re.IGNORECASE
+    case_sensitive_bool = _as_bool(case_sensitive)
+    flag = 0 if case_sensitive_bool else re.IGNORECASE
     results: list[str] = []
     content_re = re.compile(re.escape(content_search), flag) if content_search else None
     for file_path in resolved.rglob("*"):
@@ -130,9 +137,13 @@ async def search_files(
         if not file_path.is_file(): continue
         name = file_path.name
         if any(c in pattern for c in "*?["):
-            name_match = fnmatch.fnmatch(name.lower(), pattern.lower()) if not case_sensitive else fnmatch.fnmatch(name, pattern)
+            name_match = (
+                fnmatch.fnmatch(name, pattern)
+                if case_sensitive_bool
+                else fnmatch.fnmatch(name.lower(), pattern.lower())
+            )
         else:
-            name_match = pattern.lower() in name.lower() if not case_sensitive else pattern in name
+            name_match = pattern in name if case_sensitive_bool else pattern.lower() in name.lower()
         if not name_match: continue
         if content_re is None:
             results.append(str(file_path))

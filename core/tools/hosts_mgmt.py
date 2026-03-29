@@ -72,7 +72,8 @@ async def add_host(
     user: Annotated[str, "Usuario."] = "",
     password: Annotated[str, "Contraseña (se guarda en hosts.yaml — no commitar al repo)."] = "",
     key_path: Annotated[str, "Ruta clave SSH (para linux_ssh/windows_ssh)."] = "",
-    service: Annotated[str, "Service name Oracle o database name MSSQL."] = "",
+    service: Annotated[str, "Service name Oracle. Para MSSQL se puede reutilizar si no pasas database."] = "",
+    database: Annotated[str, "Base de datos por defecto para MSSQL."] = "",
     tags: Annotated[str, "Tags separados por coma. Ej: production,sap,oracle."] = "",
     description: Annotated[str, "Descripción libre del sistema."] = "",
 ) -> str:
@@ -95,15 +96,30 @@ async def add_host(
     if user: new_host["user"] = user
     if password: new_host["password"] = password
     if key_path: new_host["key_path"] = key_path
-    if service: new_host["service"] = service
+    if host_type == "oracle":
+        if service:
+            new_host["service"] = service
+    elif host_type == "mssql":
+        if database:
+            new_host["database"] = database
+        elif service:
+            new_host["database"] = service
+    elif service:
+        new_host["service"] = service
     if tags: new_host["tags"] = [t.strip() for t in tags.split(",")]
     if description: new_host["description"] = description
     hosts.append(new_host)
     _save_hosts(hosts)
+    db_hint = ""
+    if host_type == "oracle" and new_host.get("service"):
+        db_hint = f"\n  service={new_host['service']}"
+    if host_type == "mssql" and new_host.get("database"):
+        db_hint = f"\n  database={new_host['database']}"
     return (
         f"✓ Host '{alias}' ({host_type}) añadido a hosts.yaml.\n"
         f"  {ip}:{new_host['port']}"
         + (f"  user={user}" if user else "")
+        + db_hint
         + (f"\n  Recuerda: NO commitas hosts.yaml al repositorio (está en .gitignore)" if password else "")
     )
 

@@ -33,7 +33,7 @@ def _conn_key(host: str, port: int, user: str) -> str:
 
 
 async def ssh_connect(
-    host: Annotated[str, "IP o hostname del servidor remoto. O alias definido en hosts.yaml."],
+    host: Annotated[str, "IP o hostname del servidor remoto. O alias definido en hosts.yaml."] = "",
     user: Annotated[str, "Usuario SSH."] = "root",
     port: Annotated[int, "Puerto SSH. Default 22."] = 22,
     password: Annotated[str, "Contraseña. Vacío si usas clave privada."] = "",
@@ -46,7 +46,6 @@ async def ssh_connect(
     Puedes usar password o clave privada. La conexión queda activa para
     ssh_execute, ssh_upload, ssh_download. Usa ssh_disconnect para cerrarla.
     """
-    paramiko = _get_paramiko()
     # Resolver alias desde hosts.yaml si se proporciona
     host_resolved, port_resolved, user_resolved = host, port, user
     if alias or (host and not host.replace(".", "").replace(":", "").isdigit() and len(host) < 20):
@@ -63,6 +62,15 @@ async def ssh_connect(
         except Exception:
             pass  # Si no hay hosts.yaml, usamos los parámetros directos
 
+    if not host_resolved:
+        lookup_name = alias or host or "<vacío>"
+        return (
+            "✗ No se pudo resolver el host SSH.\n"
+            "Pasa host explícito o usa un alias existente en hosts.yaml.\n"
+            f"Valor recibido: {lookup_name}"
+        )
+
+    paramiko = _get_paramiko()
     conn_key = alias if alias else _conn_key(host_resolved, port_resolved, user_resolved)
 
     try:
