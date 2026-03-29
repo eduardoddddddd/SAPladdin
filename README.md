@@ -2,41 +2,61 @@
 
 **MCP Server definitivo para SAP Basis Admin, Linux Admin, Windows Admin y DBAs.**
 
-Conecta Claude (o cualquier LLM compatible con MCP) a tus sistemas reales:
-servidores Linux vía SSH, Oracle DB, SQL Server, SAP HANA Cloud y filesystem/procesos locales.
+Conecta Claude (o cualquier LLM compatible con MCP) a tus sistemas reales.
 
-## Capacidades
+---
+
+## Capacidades — 53 tools
 
 | Módulo | Tools | Descripción |
 |---|---|---|
-| **SSH** | `ssh_connect`, `ssh_execute`, `ssh_upload`, `ssh_download`, `ssh_list_connections`, `ssh_disconnect` | Acceso remoto a Linux/Windows |
-| **SAP Basis** | `sap_list_instances`, `sapcontrol_get_process_list`, `sap_check_work_processes` | Atajos SAP por SSH sobre `sapcontrol` |
-| **Oracle** | `oracle_test_connection`, `oracle_execute_query`, `oracle_list_schemas`, `oracle_describe_table`, `oracle_get_system_info` | Oracle DB (thin mode, sin Oracle Client) |
-| **SQL Server** | `mssql_test_connection`, `mssql_execute_query`, `mssql_list_databases`, `mssql_describe_table` | SQL Server on-premise y Azure SQL |
-| **HANA Cloud** | `hana_test_connection`, `hana_execute_query`, `hana_execute_ddl`, `hana_list_schemas`, `hana_list_tables`, `hana_describe_table`, `hana_get_row_count`, `hana_get_system_info` | SAP HANA Cloud (BTP) |
-| **Hosts** | `list_hosts`, `get_host`, `add_host`, `remove_host`, `test_host_connection` | Inventario de sistemas |
-| **Filesystem** | `read_file`, `write_file`, `edit_file_diff`, `list_directory`, `search_files`, `get_file_info`, `create_directory`, `move_file`, `read_multiple_files` | Operaciones de ficheros locales |
-| **Terminal** | `execute_command`, `execute_command_streaming` | Shell local (PowerShell/bash) |
-| **Procesos** | `list_processes`, `kill_process`, `start_process`, `interact_with_process`, `read_process_output`, `list_sessions`, `force_terminate` | Gestión de procesos e interactivos |
+| **Filesystem** (9) | read, write, edit, search, list... | Operaciones locales con sandbox |
+| **Terminal** (2) | execute_command, streaming | Shell local PS/bash |
+| **Procesos** (7) | list, kill, start, interact... | Gestión + REPLs interactivos |
+| **HANA Cloud** (9) | test, query, ddl, schemas, backup... | SAP HANA Cloud (hdbcli) |
+| **SSH** (6) | connect, execute, upload, download... | Acceso remoto Linux/Windows |
+| **SAP Basis** (11) | instances, processes, alerts, log... | NetWeaver vía SSH |
+| **Oracle** (7) | test, query, schemas, tablespace, rman... | Oracle DB thin mode |
+| **SQL Server** (5) | test, query, databases, agent jobs... | SQL Server on-premise/Azure |
+| **Hosts** (5) | list, add, remove, test... | Inventario de sistemas |
+
+---
+
+## SAP Basis tools (detalle)
+
+| Tool | Equivalente SAP | Descripción |
+|---|---|---|
+| `sap_list_sids` | — | Detecta SIDs en /usr/sap |
+| `sap_list_instances` | SM51 | GetSystemInstanceList |
+| `sapcontrol_get_process_list` | SM50 | GetProcessList por instancia |
+| `sap_check_work_processes` | SM50 | Resumen GREEN/YELLOW/RED/GRAY |
+| `sap_start_instance` | MMMC | Start / StartSystem |
+| `sap_stop_instance` | MMMC | Stop / StopSystem |
+| `sap_get_alerts` | RZ20/CCMS | GetAlertTree |
+| `sap_kernel_info` | SM51 kernel | disp+work -v + GetVersionInfo |
+| `sap_check_system_log` | SM21 | SYSLOG + dev_w* |
+| `sap_dispatcher_queue` | SM50/SM66 | dpmon / GetQueueStatistic |
+| `sap_abap_short_dumps` | ST22 | grep en dev_w* |
+
+---
 
 ## Instalación rápida
 
-```bash
-cd C:\Users\Edu\SAPladdin
-python -m venv .venv
-.venv\Scripts\activate
-pip install -e .[dev]
-
-# Configurar sistemas
-copy config\hosts.yaml.example config\hosts.yaml
-# Editar hosts.yaml con tus IPs/credenciales
-```
-
-O bien en Windows:
-
 ```bat
+cd C:\Users\Edu\SAPladdin
 scripts\_install.bat
 ```
+
+O manual:
+```bat
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -e .
+copy config\hosts.yaml.example config\hosts.yaml
+```
+
+Edita `config\hosts.yaml` con tus sistemas reales.
+
+---
 
 ## Configuración Claude Desktop
 
@@ -53,57 +73,95 @@ Añadir a `%APPDATA%\Claude\claude_desktop_config.json`:
 }
 ```
 
+---
+
 ## Uso básico
 
 ```
 # Ver sistemas configurados
 list_hosts()
 
-# Conectar a Linux por SSH
+# Conectar a servidor Linux SAP y ver instancias
 ssh_connect(alias="sapapp1")
-ssh_execute(connection="sapapp1", command="df -h")
-ssh_execute(connection="sapapp1", command="sapcontrol -nr 00 -function GetProcessList")
+sap_list_instances(connection="sapapp1")
+sap_check_work_processes(instance_nr="00", connection="sapapp1")
 
-# SAP Basis directo
-sap_list_instances(alias="sapapp1")
-sapcontrol_get_process_list(alias="sapapp1", instance_nr="00")
-sap_check_work_processes(alias="sapapp1", instance_nr="00")
+# Ver alertas CCMS
+sap_get_alerts(instance_nr="00", connection="sapapp1")
 
-# Consultar Oracle
+# Consultar Oracle DB
 oracle_test_connection(alias="oraprd")
-oracle_execute_query(alias="oraprd", sql="SELECT * FROM V$DATABASE")
+oracle_check_tablespace_sap(alias="oraprd", threshold_pct=85)
+oracle_backup_status(alias="oraprd")
 
-# Consultar SQL Server
+# Verificar jobs SQL Server
 mssql_test_connection(alias="sqlprd")
-mssql_execute_query(alias="sqlprd", sql="SELECT name FROM sys.databases")
+mssql_check_agent_jobs(alias="sqlprd", only_failed=True)
+
+# HANA Cloud backups
+hana_test_connection()
+hana_backup_catalog(days_back=3)
 ```
+
+---
+
+## Smoke test de conectividad
+
+```bat
+.venv\Scripts\python.exe scripts\smoke_test.py           # todos
+.venv\Scripts\python.exe scripts\smoke_test.py --fast    # solo TCP
+.venv\Scripts\python.exe scripts\smoke_test.py --alias sapapp1
+.venv\Scripts\python.exe scripts\smoke_test.py --type oracle
+```
+
+---
+
+## Hosts soportados (`config/hosts.yaml`)
+
+```yaml
+hosts:
+  - name: sap_prod_app
+    alias: sapapp1
+    type: linux_ssh        # linux_ssh | windows_ssh | oracle | mssql | hana
+    ip: 192.168.1.10
+    port: 22
+    user: root
+    key_path: ~/.ssh/id_rsa
+    tags: [sap, production, abap]
+```
+
+---
 
 ## Seguridad
 
-- `config/hosts.yaml` está en `.gitignore` — **nunca lo subas al repo**
-- DML en Oracle/MSSQL requiere `confirm_dml=True` explícito
-- DDL en HANA requiere `confirm=True` explícito
-- Comandos locales filtrados por `config/security_config.yaml`
+- `config/hosts.yaml` en `.gitignore` — **nunca al repo**
+- DML en Oracle/MSSQL requiere `confirm_dml=True`
+- DDL en HANA requiere `confirm=True`
+- `_safe_identifier()` en todos los módulos DB (anti SQL injection)
+- Comandos locales filtrados por `security_config.yaml`
+- imports condicionales: el servidor arranca aunque falte un driver
 
-## Tests y estado
+---
 
-- Hay tests iniciales en `tests/test_filesystem_and_hosts.py`
-- Cubren utilidades locales que no dependen de `fastmcp` ni drivers de BBDD
-- Para ejecutarlos: `pytest`
-- Si no tienes dependencias instaladas aún, usa primero `scripts\_install.bat`
-- Estado validado en esta sesión: `11 passed`
+## Tests
 
-## Limitaciones actuales
+```bat
+.venv\Scripts\python.exe -m pytest tests\ -q
+# 23 passed
+```
 
-- `fastmcp`, `paramiko`, `oracledb`, `pyodbc` y `hdbcli` no vienen con Python base; deben instalarse en el venv
-- HANA busca configuración en este orden: variables de entorno, `SAPladdin/config/hana_config.yaml`, `DesktopCommanderPy/config/hana_config.yaml`
-- HANA ya reutiliza como fallback la configuración de `DesktopCommanderPy`, útil si ambos repos conviven en la misma máquina
-- La validación real HANA llegó a abrir intento de conexión, pero en este entorno falla por SSL del cliente: `No valid certificate specified`
-- Oracle y MSSQL todavía necesitan una ronda más de endurecimiento si quieres abrirlos a uso amplio con entradas poco confiables
+---
+
+## Stack
+
+Python 3.11+ · fastmcp · paramiko · oracledb (thin) · pyodbc · hdbcli · psutil
+
+---
 
 ## Basado en
 
-[DesktopCommanderPy](https://github.com/eduardoddddddd/DesktopCommanderPy) — MCP Server Python base.
+[DesktopCommanderPy](https://github.com/eduardoddddddd/DesktopCommanderPy) — base MCP Python.
 
 ## Licencia
+
 MIT
