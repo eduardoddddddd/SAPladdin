@@ -1,85 +1,70 @@
 # SAPladdin — CONTEXT.md
-# Documento de estado para continuidad entre sesiones LLM.
 # AL EMPEZAR UNA SESIÓN NUEVA: pega el contenido de este fichero como primer mensaje.
 
-## ¿Qué es SAPladdin?
+## Proyecto
 MCP Server para SAP Basis Admin, Linux Admin, Windows Admin y DBAs.
-Basado en DesktopCommanderPy, extendido con SSH, Oracle, SQL Server, HANA y gestión de hosts.
+Local: C:\Users\Edu\SAPladdin\
+GitHub: https://github.com/eduardoddddddd/SAPladdin
 
-## Ubicación local
-C:\Users\Edu\SAPladdin\
+## Estado: SESIÓN 5 COMPLETADA — 2026-03-29
 
-## Repo GitHub
-https://github.com/eduardoddddddd/SAPladdin
-
-## Estado: SESIÓN 4 COMPLETADA — 2026-03-29
-### Desarrollo hecho en colaboración Claude + ChatGPT
-
-## Ficheros — TODOS COMPLETOS ✅
-core/server.py           — FastMCP, registro condicional de todos los módulos
-core/hosts.py            — _load_hosts, _save_hosts, get_host_config
-core/tools/utils.py      — seguridad, paths, shell, subprocess env
-core/tools/session_manager.py
-core/tools/process.py
-core/tools/terminal.py
-core/tools/filesystem.py
-core/tools/process_sessions.py
-core/tools/hana.py       — MEJORADO: _candidate_config_paths, _safe_identifier,
-                           _escape_like, queries parametrizadas, fallback a DCPy config
-core/tools/ssh.py        — MEJORADO: manejo explícito host no resuelto, mensaje claro
-core/tools/oracle.py     — MEJORADO: _safe_identifier, _escape_like, queries parametrizadas
-core/tools/mssql.py      — MEJORADO: _safe_identifier, queries con placeholders ?
-core/tools/hosts_mgmt.py — MEJORADO: add_host tiene param database para MSSQL
-core/tools/sap_basis.py  — NUEVO: sap_list_instances, sapcontrol_get_process_list,
-                           sap_check_work_processes (sobre SSH)
-config/security_config.yaml
-config/hosts.yaml.example
-config/hosts.yaml         — EXISTE (creado por usuario, NO va al repo)
-config/hana_config.yaml.example
-docs/CONTEXT.md           — este fichero
-README.md
-main.py
-pyproject.toml
-requirements.txt / requirements-dev.txt
-scripts/_install.bat
-scripts/_git_setup.bat
-tests/conftest.py
-tests/test_filesystem_and_hosts.py  — 11 tests, todos pasan ✅
+## Stack instalado en .venv ✅
+paramiko 4.0.0 | oracledb 3.4.2 | pyodbc 5.3.0 | hdbcli 2.28.19
+fastmcp 3.1.1  | psutil 7.2.2   | pyyaml 6.0.3
 
 ## Tests: 11/11 GREEN
-python -m pytest tests\ --tb=line -q   →   11 passed in 0.09s
+.venv\Scripts\python.exe -m pytest tests\ -q   →   11 passed
 
-## Arquitectura de conexiones (pools en memoria)
-SSH:    _ssh_pool    dict en ssh.py    — paramiko.SSHClient por alias
-Oracle: _oracle_pool dict en oracle.py — oracledb.Connection por alias
-MSSQL:  _mssql_pool  dict en mssql.py  — pyodbc.Connection por alias
-HANA:   sin pool    — conexión nueva por query (hdbcli)
+## Tools disponibles (48 total)
 
-## Tools disponibles (37 total)
-filesystem (9): read_file, write_file, edit_file_diff, list_directory, search_files,
-                get_file_info, create_directory, move_file, read_multiple_files
-terminal (2):   execute_command, execute_command_streaming
-process (7):    list_processes, kill_process, start_process, read_process_output,
-                interact_with_process, list_sessions, force_terminate
-hana (8):       hana_test_connection, hana_execute_query, hana_execute_ddl,
-                hana_list_schemas, hana_list_tables, hana_describe_table,
-                hana_get_row_count, hana_get_system_info
-ssh (6):        ssh_connect, ssh_execute, ssh_upload, ssh_download,
-                ssh_list_connections, ssh_disconnect
-sap_basis (3):  sap_list_instances, sapcontrol_get_process_list, sap_check_work_processes
-oracle (5):     oracle_test_connection, oracle_execute_query, oracle_list_schemas,
-                oracle_describe_table, oracle_get_system_info
-mssql (4):      mssql_test_connection, mssql_execute_query,
-                mssql_list_databases, mssql_describe_table
-hosts (5):      list_hosts, get_host, add_host, remove_host, test_host_connection
+### Filesystem (9)
+read_file, write_file, edit_file_diff, list_directory, search_files,
+get_file_info, create_directory, move_file, read_multiple_files
 
-## Dependencias
-fastmcp>=2.0.0, pyyaml, psutil, aiofiles, pathspec,
-paramiko>=3.4, oracledb>=2.0, pyodbc>=5.0, hdbcli>=2.0
+### Terminal + Procesos (9)
+execute_command, execute_command_streaming,
+list_processes, kill_process,
+start_process, read_process_output, interact_with_process, list_sessions, force_terminate
 
-## Instalación
-cd C:\Users\Edu\SAPladdin
-scripts\_install.bat           # crea venv, instala, copia hosts.yaml.example
+### SAP HANA Cloud (8)
+hana_test_connection, hana_execute_query, hana_execute_ddl,
+hana_list_schemas, hana_list_tables, hana_describe_table,
+hana_get_row_count, hana_get_system_info
+
+### SSH (6)
+ssh_connect, ssh_execute, ssh_upload, ssh_download,
+ssh_list_connections, ssh_disconnect
+
+### SAP Basis / NetWeaver (11) ← NUEVO EN SESIÓN 5
+sap_list_sids              - detecta SIDs en /usr/sap del host
+sap_list_instances         - GetSystemInstanceList
+sapcontrol_get_process_list - GetProcessList de una instancia
+sap_check_work_processes   - resumen GREEN/YELLOW/RED/GRAY
+sap_start_instance         - Start / StartSystem via sapcontrol
+sap_stop_instance          - Stop / StopSystem via sapcontrol
+sap_get_alerts             - GetAlertTree (CCMS/RZ20 equivalente)
+sap_kernel_info            - versión kernel + disp+work -v
+sap_check_system_log       - SM21 equivalente via SYSLOG + dev_w*
+sap_dispatcher_queue       - dpmon / GetQueueStatistic (SM50/SM66)
+sap_abap_short_dumps       - ST22 equivalente via grep en dev_w*
+
+### Oracle DB (6) ← +1 en sesión 5
+oracle_test_connection, oracle_execute_query, oracle_list_schemas,
+oracle_describe_table, oracle_get_system_info,
+oracle_check_tablespace_sap  - tablespaces con alertas threshold, top segmentos SAP
+
+### SQL Server (4)
+mssql_test_connection, mssql_execute_query,
+mssql_list_databases, mssql_describe_table
+
+### Hosts (5)
+list_hosts, get_host, add_host, remove_host, test_host_connection
+
+## Arquitectura de conexiones
+SSH:    _ssh_pool    (paramiko.SSHClient)   — pool en memoria
+Oracle: _oracle_pool (oracledb.Connection)  — pool en memoria
+MSSQL:  _mssql_pool  (pyodbc.Connection)    — pool en memoria
+HANA:   sin pool, conexión por query        — hdbcli
 
 ## Claude Desktop config
 {
@@ -91,11 +76,11 @@ scripts\_install.bat           # crea venv, instala, copia hosts.yaml.example
   }
 }
 
-## Próximas mejoras posibles
-1. Instalar deps reales y probar conexiones live (paramiko, oracledb, pyodbc, hdbcli)
-2. sap_basis: añadir sap_start_instance, sap_stop_instance vía sapcontrol
-3. sap_basis: añadir sap_check_system_log (SM21 vía SSH + grep)
-4. oracle: añadir oracle_check_tablespace_sap (query específica para landscape SAP)
-5. Tests de integración con mocks de BD reales
-6. Modo HTTP/SSE para acceso remoto al MCP desde otros hosts
-7. pyrfc: RFC/BAPI nativos (requiere SAP NW RFC SDK — no puro Python)
+## Próximos pasos sugeridos
+1. Registrar SAPladdin en Claude Desktop y probar con hosts reales
+2. Añadir tests para sap_basis (mocks de ssh_execute)
+3. Añadir oracle_backup_status (RMAN query v$rman_backup_job_details)
+4. Añadir sap_hana_backup_catalog (hdbcli query M_BACKUP_CATALOG)
+5. Añadir mssql_check_agent_jobs (msdb.dbo.sysjobhistory)
+6. Considerar modo HTTP para acceso remoto al MCP desde otros hosts
+7. Script de smoke test que conecte a todos los hosts y reporte estado

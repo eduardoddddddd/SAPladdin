@@ -254,3 +254,88 @@ async def oracle_get_system_info(alias: Annotated[str, "Alias de la conexión Or
         return "\n".join(sections)
     except Exception as exc:
         return f"Error obteniendo system info Oracle [{alias}]: {exc}"
+
+
+async def oracle_check_tablespace_sap(
+    alias: Annotated[str, "Alias de la conexión Oracle."],
+    threshold_pct: Annotated[int, "Alertar si el uso supera este porcentaje. Default 80."] = 80,
+    schema_owner: Annotated[str, "Owner SAP para filtrar. Ej: SAPR3, SAPABAP1. Vacío = todos."] = "",
+) -> str:
+    """Monitorización de tablespaces optimizada para landscapes SAP.
+
+    Muestra: uso %, espacio libre, autoextend, segmentos más grandes del owner SAP.
+    Especialmente útil para monitorizar PSAP*, TEMP, UNDO en producción.
+    """
+    from core.tools.oracle import _oracle_pool, _format_rows
+    conn = _oracle_pool.get(alias)
+    if conn is None:
+        return f"[ERROR] Sin conexión Oracle '{alias}'. Usa oracle_test_connection primero."
+    try:
+        cursor = conn.cursor()
+        sections = []
+
+        # Tablespace usage con autoextend info
+        cursor.execute("""
+            SELECT
+                df.TABLESPACE_NAME,
+                ROUND(df.TOTAL_MB, 0)                          AS TOTAL_MB,
+                ROUND(df.TOTAL_MB - NVL(fs.FREE_MB, 0), 0)    AS USED_MB,
+                ROUND(NVL(fs.FREE_MB, 0), 0)                   AS FREE_MB,
+                ROUND((1 - NVL(fs.FREE_MB,0)/df.TOTAL_MB)*100, 1) AS USED_PCT,
+                df.AUTOEXTEND,
+                ROUND(df.MAX_MB, 0)                            AS MAX_MB
+            FROM
+                (SELECT TABLESPACE_NAME,
+                        SUM(BYTES)/1024/1024 AS TOTAL_MB,
+                        MAX(AUTOEXTENSIBLE)  AS AUTOEXTEND,
+                        SUM(DECODE(AUTOEXTENSIBLE,'YES',MAXBYTES,BYTES))/1024/1024 AS MAX_MB
+                 FROM DBA_DATA_FILES GROUP BY TABLESPACE_NAME) df
+            LEFT JOIN
+                (SELECT TABLESPACE_NAME, SUM(BYTES)/1024/1024 AS FREE_MB
+                 FROM DBA_FREE_SPACE GROUP BY TABLESPACE_NAME) fs
+            ON df.TABLESPACE_NAME = fs.TABLESPACE_NAME
+            ORDER BY USED_PCT DESC NULLS LAST
+        """)
+        ts_result = _format_rows(cursor, 50)
+        sections.append("=== TABLESPACES ===\n" + ts_result)
+
+        # Tablespaces críticos por encima del threshold
+        cursor.execute(f"""
+            SELECT df.TABLESPACE_NAME,
+                   ROUND((1 - NVL(fs.FREE_MB,0)/df.TOTAL_MB)*100, 1) AS USED_PCT
+            FROM
+                (SELECT TABLESPACE_NAME, SUM(BYTES)/1024/1024 AS TOTAL_MB
+                 FROM DBA_DATA_FILES GROUP BY TABLESPACE_NAME) df
+            LEFT JOIN
+                (SELECT TABLESPACE_NAME, SUM(BYTES)/1024/1024 AS FREE_MB
+                 FROM DBA_FREE_SPACE GROUP BY TABLESPACE_NAME) fs
+            ON df.TABLESPACE_NAME = fs.TABLESPACE_NAME
+            WHERE ROUND((1 - NVL(fs.FREE_MB,0)/df.TOTAL_MB)*100, 1) >= {threshold_pct}
+            ORDER BY USED_PCT DESC
+        """)
+        critical = cursor.fetchall()
+        if critical:
+            alert_lines = [f"  ⚠ {row[0]}: {row[1]}%" for row in critical]
+            sections.append(
+                f"=== ALERTAS (>{threshold_pct}%) ===\n" + "\n".join(alert_lines)
+            )
+        else:
+            sections.append(f"=== Sin tablespaces por encima de {threshold_pct}% ✓ ===")
+
+        # Top 10 segmentos del owner SAP
+        if schema_owner:
+            owner_safe = schema_owner.strip().upper()
+            cursor.execute(f"""
+                SELECT SEGMENT_NAME, SEGMENT_TYPE,
+                       ROUND(BYTES/1024/1024, 1) AS MB
+                FROM DBA_SEGMENTS
+                WHERE OWNER = '{owner_safe}'
+                ORDER BY BYTES DESC FETCH FIRST 10 ROWS ONLY
+            """)
+            top_seg = _format_rows(cursor, 10)
+            sections.append(f"=== TOP 10 SEGMENTOS ({owner_safe}) ===\n" + top_seg)
+
+        cursor.close()
+        return "\n\n".join(sections)
+    except Exception as exc:
+        return f"Error en oracle_check_tablespace_sap [{alias}]: {exc}"
