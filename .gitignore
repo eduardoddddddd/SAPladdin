@@ -15,6 +15,7 @@ build/
 # Secrets — NUNCA al repo
 config/hosts.yaml
 config/hana_config.yaml
+config/gcloud_config.yaml
 .env
 *.env
 

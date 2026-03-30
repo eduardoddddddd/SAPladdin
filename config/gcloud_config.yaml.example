@@ -1,0 +1,18 @@
+gcloud:
+  # Proyecto GCP por defecto para las tools MCP
+  project: "project-0bbed615-3203-4957-a27"
+
+  # Defaults operativos para Compute Engine
+  default_zone: "europe-west1-b"
+  default_region: "europe-west1"
+  ssh_user: "Edu"
+
+  # Reutiliza la misma credencial ya validada en CLI.
+  # El fichero real gcloud_config.yaml está en .gitignore.
+  service_account_key_file: "C:/Users/Edu/Downloads/project-0bbed615-3203-4957-a27-677a9255cbd7.json"
+
+  # Ruta explícita recomendada en este equipo para no depender del PATH.
+  gcloud_bin: "C:/Users/Edu/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd"
+
+  # Timeout por defecto para operaciones gcloud.
+  command_timeout_seconds: 60

@@ -1,42 +1,55 @@
-# SAPladdin 🔧
+# SAPladdin
 
-**MCP Server definitivo para SAP Basis Admin, Linux Admin, Windows Admin y DBAs.**
+**MCP Server para SAP Basis Admin, Linux Admin, Windows Admin, DBAs y operación práctica sobre Google Cloud.**
 
-Conecta Claude (o cualquier LLM compatible con MCP) a tus sistemas reales.
+Conecta Claude o cualquier cliente MCP compatible a sistemas reales: filesystem local, procesos, SSH, SAP Basis, Oracle, SQL Server, HANA Cloud y ahora Google Compute Engine vía `gcloud`.
 
 ---
 
-## Capacidades — 53 tools
+## Capacidades - 64 tools
 
 | Módulo | Tools | Descripción |
 |---|---|---|
 | **Filesystem** (9) | read, write, edit, search, list... | Operaciones locales con sandbox |
 | **Terminal** (2) | execute_command, streaming | Shell local PS/bash |
 | **Procesos** (7) | list, kill, start, interact... | Gestión + REPLs interactivos |
-| **HANA Cloud** (9) | test, query, ddl, schemas, backup... | SAP HANA Cloud (hdbcli) |
+| **HANA Cloud** (9) | test, query, ddl, schemas, backup... | SAP HANA Cloud (`hdbcli`) |
+| **Google Cloud** (11) | config, list, start, stop, create, firewall, export... | Operación GCE/GCP reutilizando `gcloud` |
 | **SSH** (6) | connect, execute, upload, download... | Acceso remoto Linux/Windows |
 | **SAP Basis** (11) | instances, processes, alerts, log... | NetWeaver vía SSH |
 | **Oracle** (7) | test, query, schemas, tablespace, rman... | Oracle DB thin mode |
 | **SQL Server** (5) | test, query, databases, agent jobs... | SQL Server on-premise/Azure |
-| **Hosts** (5) | list, add, remove, test... | Inventario de sistemas |
+| **Hosts** (5) | list, add, remove, test... | Inventario manual de sistemas |
 
 ---
 
-## SAP Basis tools (detalle)
+## Google Cloud
 
-| Tool | Equivalente SAP | Descripción |
-|---|---|---|
-| `sap_list_sids` | — | Detecta SIDs en /usr/sap |
-| `sap_list_instances` | SM51 | GetSystemInstanceList |
-| `sapcontrol_get_process_list` | SM50 | GetProcessList por instancia |
-| `sap_check_work_processes` | SM50 | Resumen GREEN/YELLOW/RED/GRAY |
-| `sap_start_instance` | MMMC | Start / StartSystem |
-| `sap_stop_instance` | MMMC | Stop / StopSystem |
-| `sap_get_alerts` | RZ20/CCMS | GetAlertTree |
-| `sap_kernel_info` | SM51 kernel | disp+work -v + GetVersionInfo |
-| `sap_check_system_log` | SM21 | SYSLOG + dev_w* |
-| `sap_dispatcher_queue` | SM50/SM66 | dpmon / GetQueueStatistic |
-| `sap_abap_short_dumps` | ST22 | grep en dev_w* |
+La integración nueva es deliberadamente `gcloud-first`.
+
+No usa el SDK Python de GCP. Usa wrappers MCP sobre `gcloud --format=json` porque en este entorno ya estaban validados:
+
+- `gcloud` instalado en Windows
+- proyecto activo `project-0bbed615-3203-4957-a27`
+- service account funcional con JSON local
+- operaciones reales de create/start/stop/list sobre VMs
+- troubleshooting de SSH, firewall, IP pública y red Docker en GCE
+
+Tools incluidas:
+
+- `gcloud_get_config`
+- `gcloud_set_defaults`
+- `gcloud_list_instances`
+- `gcloud_describe_instance`
+- `gcloud_start_instance`
+- `gcloud_stop_instance`
+- `gcloud_create_instance`
+- `gcloud_list_firewall_rules`
+- `gcloud_check_ssh_access`
+- `gcloud_instance_network_report`
+- `gcloud_export_instance_to_host`
+
+La idea no es solo aprovisionar VMs, sino poder diagnosticar rápido lo que suele romperse en la práctica: IP pública, reglas de firewall, puertos, tags y síntomas típicos de red en hosts Docker sobre GCE.
 
 ---
 
@@ -48,13 +61,13 @@ scripts\_install.bat
 ```
 
 O manual:
+
 ```bat
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -e .
 copy config\hosts.yaml.example config\hosts.yaml
+copy config\gcloud_config.yaml.example config\gcloud_config.yaml
 ```
-
-Edita `config\hosts.yaml` con tus sistemas reales.
 
 ---
 
@@ -75,43 +88,48 @@ Añadir a `%APPDATA%\Claude\claude_desktop_config.json`:
 
 ---
 
+## Configuración Google Cloud
+
+`config/gcloud_config.yaml`:
+
+```yaml
+gcloud:
+  project: "project-0bbed615-3203-4957-a27"
+  default_zone: "europe-west1-b"
+  default_region: "europe-west1"
+  ssh_user: "Edu"
+  service_account_key_file: "C:/Users/Edu/Downloads/project-0bbed615-3203-4957-a27-677a9255cbd7.json"
+  gcloud_bin: "C:/Users/Edu/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd"
+  command_timeout_seconds: 60
+```
+
+El fichero real está en `.gitignore`, así que se puede guardar la ruta local del JSON sin contaminar el repo.
+
+---
+
 ## Uso básico
 
-```
-# Ver sistemas configurados
+```text
+# Hosts manuales
 list_hosts()
 
-# Conectar a servidor Linux SAP y ver instancias
+# SAP Basis por SSH
 ssh_connect(alias="sapapp1")
 sap_list_instances(connection="sapapp1")
 sap_check_work_processes(instance_nr="00", connection="sapapp1")
 
-# Ver alertas CCMS
-sap_get_alerts(instance_nr="00", connection="sapapp1")
-
-# Consultar Oracle DB
+# Oracle / SQL Server / HANA
 oracle_test_connection(alias="oraprd")
-oracle_check_tablespace_sap(alias="oraprd", threshold_pct=85)
-oracle_backup_status(alias="oraprd")
-
-# Verificar jobs SQL Server
-mssql_test_connection(alias="sqlprd")
 mssql_check_agent_jobs(alias="sqlprd", only_failed=True)
-
-# HANA Cloud backups
-hana_test_connection()
 hana_backup_catalog(days_back=3)
-```
 
----
-
-## Smoke test de conectividad
-
-```bat
-.venv\Scripts\python.exe scripts\smoke_test.py           # todos
-.venv\Scripts\python.exe scripts\smoke_test.py --fast    # solo TCP
-.venv\Scripts\python.exe scripts\smoke_test.py --alias sapapp1
-.venv\Scripts\python.exe scripts\smoke_test.py --type oracle
+# Google Cloud
+gcloud_get_config()
+gcloud_list_instances(status_filter="RUNNING")
+gcloud_describe_instance(instance_name="abap-docker-host")
+gcloud_check_ssh_access(instance_name="abap-docker-host")
+gcloud_instance_network_report(instance_name="abap-docker-host", ports="22,3200,50000")
+gcloud_export_instance_to_host(instance_name="abap-docker-host", alias="a4hgcp", key_path="C:/Users/Edu/.ssh/google_compute_engine")
 ```
 
 ---
@@ -122,7 +140,7 @@ hana_backup_catalog(days_back=3)
 hosts:
   - name: sap_prod_app
     alias: sapapp1
-    type: linux_ssh        # linux_ssh | windows_ssh | oracle | mssql | hana
+    type: linux_ssh
     ip: 192.168.1.10
     port: 22
     user: root
@@ -130,16 +148,19 @@ hosts:
     tags: [sap, production, abap]
 ```
 
+`hosts.yaml` sigue siendo el inventario manual para SSH/DB. Google Cloud no depende de ese fichero, porque el inventario de VMs sale dinámicamente del proyecto GCP.
+
 ---
 
 ## Seguridad
 
-- `config/hosts.yaml` en `.gitignore` — **nunca al repo**
+- `config/hosts.yaml` en `.gitignore`
+- `config/hana_config.yaml` en `.gitignore`
+- `config/gcloud_config.yaml` en `.gitignore`
 - DML en Oracle/MSSQL requiere `confirm_dml=True`
 - DDL en HANA requiere `confirm=True`
-- `_safe_identifier()` en todos los módulos DB (anti SQL injection)
-- Comandos locales filtrados por `security_config.yaml`
-- imports condicionales: el servidor arranca aunque falte un driver
+- `_safe_identifier()` y validaciones de entrada en los módulos de datos
+- comandos locales filtrados por `security_config.yaml`
 
 ---
 
@@ -147,20 +168,21 @@ hosts:
 
 ```bat
 .venv\Scripts\python.exe -m pytest tests\ -q
-# 23 passed
 ```
+
+Suite actual esperada tras la ampliación Google Cloud: `29 passed`.
 
 ---
 
 ## Stack
 
-Python 3.11+ · fastmcp · paramiko · oracledb (thin) · pyodbc · hdbcli · psutil
+Python 3.11+ · fastmcp · paramiko · oracledb · pyodbc · hdbcli · psutil · gcloud CLI
 
 ---
 
 ## Basado en
 
-[DesktopCommanderPy](https://github.com/eduardoddddddd/DesktopCommanderPy) — base MCP Python.
+[DesktopCommanderPy](https://github.com/eduardoddddddd/DesktopCommanderPy)
 
 ## Licencia
 

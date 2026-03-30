@@ -21,6 +21,13 @@ from core.tools.hana import (
     hana_list_schemas, hana_list_tables, hana_describe_table,
     hana_get_row_count, hana_get_system_info, hana_backup_catalog,
 )
+from core.tools.gcloud import (
+    gcloud_get_config, gcloud_set_defaults, gcloud_list_instances,
+    gcloud_describe_instance, gcloud_start_instance, gcloud_stop_instance,
+    gcloud_create_instance, gcloud_list_firewall_rules,
+    gcloud_check_ssh_access, gcloud_instance_network_report,
+    gcloud_export_instance_to_host,
+)
 from core.tools.terminal import execute_command, execute_command_streaming
 from core.tools.process import list_processes, kill_process
 from core.tools.utils import load_security_config
@@ -74,7 +81,7 @@ mcp = FastMCP(
     instructions=(
         "MCP Server para SAP Basis, Linux Admin, Windows Admin y DBAs. "
         "Acceso a Linux vía SSH, Oracle, SQL Server, SAP HANA Cloud, "
-        "filesystem y procesos locales. "
+        "filesystem, procesos locales y Google Cloud vía gcloud. "
         "Usa list_hosts para ver sistemas configurados. "
         "Platform: " + platform.system()
     ),
@@ -97,6 +104,14 @@ for _t in [execute_command, execute_command_streaming,
 for _t in [hana_test_connection, hana_execute_query, hana_execute_ddl,
            hana_list_schemas, hana_list_tables, hana_describe_table,
            hana_get_row_count, hana_get_system_info, hana_backup_catalog]:
+    mcp.tool()(_t)
+
+# Google Cloud (11)
+for _t in [gcloud_get_config, gcloud_set_defaults, gcloud_list_instances,
+           gcloud_describe_instance, gcloud_start_instance, gcloud_stop_instance,
+           gcloud_create_instance, gcloud_list_firewall_rules,
+           gcloud_check_ssh_access, gcloud_instance_network_report,
+           gcloud_export_instance_to_host]:
     mcp.tool()(_t)
 
 # SSH + SAP Basis
