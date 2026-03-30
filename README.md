@@ -4,6 +4,10 @@
 
 Conecta Claude o cualquier cliente MCP compatible a sistemas reales: filesystem local, procesos, SSH, SAP Basis, Oracle, SQL Server, HANA Cloud y ahora Google Compute Engine vía `gcloud`.
 
+Guía de conexión a clientes MCP y LLM apps:
+
+- [docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md)
+
 ---
 
 ## Capacidades - 64 tools
@@ -170,7 +174,7 @@ hosts:
 .venv\Scripts\python.exe -m pytest tests\ -q
 ```
 
-Suite actual esperada tras la ampliación Google Cloud: `29 passed`.
+Suite actual esperada tras la ampliación Google Cloud: `30 passed`.
 
 ---
 
