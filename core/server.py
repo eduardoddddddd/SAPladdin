@@ -28,13 +28,19 @@ from core.tools.gcloud import (
     gcloud_check_ssh_access, gcloud_instance_network_report,
     gcloud_export_instance_to_host,
 )
+from core.tools.joplin import (
+    joplin_status, joplin_get_config, joplin_set_config, joplin_set_permissions,
+    joplin_list_notebooks, joplin_create_notebook, joplin_rename_notebook, joplin_delete_notebook,
+    joplin_list_notes, joplin_get_note, joplin_search_notes,
+    joplin_create_note, joplin_update_note, joplin_delete_note,
+)
 from core.tools.terminal import execute_command, execute_command_streaming
 from core.tools.process import list_processes, kill_process
 from core.tools.utils import load_security_config
 
 try:
     from core.tools.ssh import (
-        ssh_connect, ssh_execute, ssh_upload, ssh_download,
+        ssh_connect, ssh_execute, ssh_run_bash_script, ssh_upload, ssh_download,
         ssh_list_connections, ssh_disconnect,
     )
     from core.tools.sap_basis import (
@@ -81,8 +87,12 @@ mcp = FastMCP(
     instructions=(
         "MCP Server para SAP Basis, Linux Admin, Windows Admin y DBAs. "
         "Acceso a Linux vía SSH, Oracle, SQL Server, SAP HANA Cloud, "
-        "filesystem, procesos locales y Google Cloud vía gcloud. "
+        "filesystem, procesos locales, Google Cloud vía gcloud y Joplin Web Clipper. "
         "Usa list_hosts para ver sistemas configurados. "
+        "SSH: para scripts medianos/largos en Linux usa ssh_run_bash_script (stdin a bash -s) "
+        "en lugar de embebidos con quoting frágil desde PowerShell. "
+        "PowerShell: no reutilices la variable reservada $Host. "
+        "Si un wrapper MCP falla por CRLF/quoting pero la acción principal fue correcta, repórtalo por separado. "
         "Platform: " + platform.system()
     ),
 )
@@ -114,9 +124,18 @@ for _t in [gcloud_get_config, gcloud_set_defaults, gcloud_list_instances,
            gcloud_export_instance_to_host]:
     mcp.tool()(_t)
 
+# Joplin Web Clipper (14)
+for _t in [
+    joplin_status, joplin_get_config, joplin_set_config, joplin_set_permissions,
+    joplin_list_notebooks, joplin_create_notebook, joplin_rename_notebook, joplin_delete_notebook,
+    joplin_list_notes, joplin_get_note, joplin_search_notes,
+    joplin_create_note, joplin_update_note, joplin_delete_note,
+]:
+    mcp.tool()(_t)
+
 # SSH + SAP Basis
 if _SSH_AVAILABLE:
-    for _t in [ssh_connect, ssh_execute, ssh_upload, ssh_download,
+    for _t in [ssh_connect, ssh_execute, ssh_run_bash_script, ssh_upload, ssh_download,
                ssh_list_connections, ssh_disconnect,
                sap_list_sids, sap_list_instances,
                sapcontrol_get_process_list, sap_check_work_processes,

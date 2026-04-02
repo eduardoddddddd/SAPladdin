@@ -16,6 +16,7 @@ build/
 config/hosts.yaml
 config/hana_config.yaml
 config/gcloud_config.yaml
+config/joplin_config.yaml
 .env
 *.env
 

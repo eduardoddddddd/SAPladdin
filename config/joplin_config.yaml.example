@@ -1,0 +1,8 @@
+joplin:
+  base_url: "http://127.0.0.1:41184"
+  token: ""
+  permissions:
+    allow_create: true
+    allow_update: true
+    allow_delete: false
+    allow_manage_notebooks: false

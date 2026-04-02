@@ -10,7 +10,7 @@ Guía de conexión a clientes MCP y LLM apps:
 
 ---
 
-## Capacidades - 64 tools
+## Capacidades - 78 tools
 
 | Módulo | Tools | Descripción |
 |---|---|---|
@@ -19,6 +19,7 @@ Guía de conexión a clientes MCP y LLM apps:
 | **Procesos** (7) | list, kill, start, interact... | Gestión + REPLs interactivos |
 | **HANA Cloud** (9) | test, query, ddl, schemas, backup... | SAP HANA Cloud (`hdbcli`) |
 | **Google Cloud** (11) | config, list, start, stop, create, firewall, export... | Operación GCE/GCP reutilizando `gcloud` |
+| **Joplin** (14) | status, config, permisos, list/search/get/create/update/delete | Gestión documental de notas/libretas vía Web Clipper |
 | **SSH** (6) | connect, execute, upload, download... | Acceso remoto Linux/Windows |
 | **SAP Basis** (11) | instances, processes, alerts, log... | NetWeaver vía SSH |
 | **Oracle** (7) | test, query, schemas, tablespace, rman... | Oracle DB thin mode |
@@ -54,6 +55,20 @@ Tools incluidas:
 - `gcloud_export_instance_to_host`
 
 La idea no es solo aprovisionar VMs, sino poder diagnosticar rápido lo que suele romperse en la práctica: IP pública, reglas de firewall, puertos, tags y síntomas típicos de red en hosts Docker sobre GCE.
+
+---
+
+## Joplin (Web Clipper)
+
+Integración MCP nativa para que cualquier LLM cliente use Joplin de forma consistente:
+
+- lectura: `joplin_list_notes`, `joplin_get_note`, `joplin_list_notebooks`
+- búsqueda profunda: `joplin_search_notes` (soporta sintaxis avanzada de Joplin: `tag:`, `notebook:`, `any:`...)
+- escritura: `joplin_create_note`, `joplin_update_note`, `joplin_delete_note`
+- libretas: `joplin_create_notebook`, `joplin_rename_notebook`, `joplin_delete_notebook`
+- control operativo: `joplin_status`, `joplin_get_config`, `joplin_set_config`, `joplin_set_permissions`
+
+Config local opcional en `config/joplin_config.yaml` (ignorado por git), ejemplo en `config/joplin_config.yaml.example`.
 
 ---
 

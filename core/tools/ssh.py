@@ -136,6 +136,55 @@ async def ssh_execute(
         return f"[ERROR] ssh_execute falló en '{connection}': {exc}"
 
 
+def _normalize_remote_script(script: str) -> str:
+    """Evita problemas típicos de CRLF al pegar scripts desde Windows."""
+    return script.replace("\r\n", "\n").replace("\r", "\n")
+
+
+async def ssh_run_bash_script(
+    connection: Annotated[str, "Pool ID (alias o user@host:port) de la conexión activa."],
+    script: Annotated[str, "Script bash completo; se envía por stdin a `bash -s` (sin quoting frágil)."],
+    timeout: Annotated[int, "Timeout en segundos. Default 120."] = 120,
+) -> str:
+    """Ejecuta un script remoto vía `bash -s` leyendo el cuerpo por stdin.
+
+    Equivalente robusto a: `ssh user@host 'bash -s' < script.sh`
+    Úsalo para bloques medianos/largos en lugar de embebidos en una sola línea
+    (evita quoting roto PowerShell → SSH → bash y CRLF raros).
+    """
+    with _pool_lock:
+        client = _ssh_pool.get(connection)
+    if client is None:
+        return f"[ERROR] No hay conexión activa '{connection}'. Usa ssh_connect primero.\nConexiones activas: {list(_ssh_pool.keys())}"
+    body = _normalize_remote_script(script)
+    if not body.strip():
+        return "[ERROR] script vacío."
+    try:
+        stdin, stdout, stderr = client.exec_command("bash -s", timeout=timeout, get_pty=False)
+        stdin.write(body.encode("utf-8"))
+        stdin.channel.shutdown_write()
+        out = stdout.read().decode("utf-8", errors="replace")
+        err = stderr.read().decode("utf-8", errors="replace")
+        exit_code = stdout.channel.recv_exit_status()
+        preview = body[:200].replace("\n", "\\n")
+        if len(body) > 200:
+            preview += "..."
+        result = (
+            f"[{connection}] bash -s (stdin, {len(body)} bytes)\n"
+            f"[script preview] {preview}\n"
+        )
+        if out.strip():
+            result += out.rstrip() + "\n"
+        if err.strip():
+            result += f"[stderr]\n{err.rstrip()}\n"
+        if exit_code != 0:
+            result += f"[Exit code: {exit_code}]"
+        return result.rstrip()
+    except Exception as exc:
+        logger.error("ssh_run_bash_script on %s: %s", connection, exc)
+        return f"[ERROR] ssh_run_bash_script falló en '{connection}': {exc}"
+
+
 async def ssh_upload(
     connection: Annotated[str, "Pool ID de la conexión activa."],
     local_path: Annotated[str, "Ruta local del fichero a subir."],
