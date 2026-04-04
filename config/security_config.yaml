@@ -1,49 +1,29 @@
 # SAPladdin - Security Configuration
-# Personaliza los directorios permitidos y comandos bloqueados.
+# ─────────────────────────────────────────────────────────────────────────────
+# PERFIL: Administrador de sistemas senior con acceso total al sistema.
+# allowed_directories vacío ([]) = acceso a todo el sistema de archivos.
+# Ver README.md sección "Seguridad" para más detalles.
+# ─────────────────────────────────────────────────────────────────────────────
 
 security:
-  # Directorios donde las filesystem tools pueden operar.
-  allowed_directories:
-    - "C:/Users/Edu/Documents"
-    - "C:/Users/Edu/Desktop"
-    - "C:/Users/Edu/Downloads"
-    - "C:/Users/Edu/SAPladdin"
-    - "C:/Users/Edu/Documents/ClaudeWork"
-    # Añade aquí directorios adicionales según necesites:
-    # - "C:/sap_scripts"
-    # - "C:/oracle_scripts"
+  # [] = acceso total al filesystem (igual que Desktop Commander en modo admin).
+  # Añade rutas específicas aquí si quieres restringir en algún momento.
+  allowed_directories: []
 
-  # Comandos NUNCA ejecutados, sin importar el contexto.
+  # Solo bloqueamos lo irreversiblemente catastrófico.
   blocked_commands:
-    # Disco/particiones
     - "format c:"
     - "format d:"
+    - "format e:"
     - "diskpart"
     - "fdisk"
-    - "dd"
-    # Usuarios/permisos
-    - "net user"
-    - "net localgroup"
-    - "icacls"
-    - "takeown"
-    # Sistema/registro
-    - "reg add"
-    - "reg delete"
-    - "regedit"
-    - "bcdedit"
-    # Red/firewall
-    - "netsh"
-    - "iptables"
-    # Apagado
-    - "shutdown"
-    - "restart-computer"
-    - "halt"
-    # Seguridad
     - "mimikatz"
-    - "cipher"
+    - "shutdown /s"
+    - "halt"
+    - "poweroff"
 
-  max_file_size_bytes: 10485760   # 10 MB
-  max_read_lines: 2000
+  max_file_size_bytes: 104857600  # 100 MB
+  max_read_lines: 5000
 
   write_blocked_extensions:
     - ".exe"
@@ -54,8 +34,8 @@ terminal:
   windows_shell: "powershell.exe"
   linux_shell:   "/bin/bash"
   macos_shell:   "/bin/zsh"
-  default_timeout_seconds: 60     # más largo que DCPy para comandos SAP
-  max_output_chars: 500000
+  default_timeout_seconds: 120
+  max_output_chars: 1000000
 
 logging:
   level: "INFO"

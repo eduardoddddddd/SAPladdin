@@ -45,6 +45,7 @@ def load_security_config(config_path: Path) -> dict[str, Any]:
         logger.error("YAML parse error in config: %s — using defaults", exc)
     return defaults
 
+
 def _deep_merge(base: dict, override: dict) -> None:
     for key, value in override.items():
         if key in base and isinstance(base[key], dict) and isinstance(value, dict):
@@ -107,22 +108,45 @@ def build_subprocess_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
-    python_dirs: list[str] = []
+
+    # ── PATHEXT ──────────────────────────────────────────────────────────────
+    # Claude Desktop restringe PATHEXT a solo ".CPL", lo que impide que
+    # PowerShell encuentre icacls.exe, net.exe, reg.exe, etc.
+    # Restauramos el valor estándar de Windows.
+    if platform.system() == "Windows":
+        env["PATHEXT"] = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC"
+
+    # ── PATH ──────────────────────────────────────────────────────────────────
+    priority_dirs: list[str] = []
+
+    # 1. venv Python scripts
     venv_scripts = Path(sys.executable).parent
-    python_dirs.append(str(venv_scripts))
+    priority_dirs.append(str(venv_scripts))
     try:
         base_scripts = Path(sys.base_prefix) / "Scripts"
         if base_scripts != venv_scripts:
-            python_dirs.append(str(base_scripts))
+            priority_dirs.append(str(base_scripts))
     except Exception:
         pass
+
+    # 2. Rutas de sistema Windows — icacls, net, reg, takeown, netsh, etc.
+    if platform.system() == "Windows":
+        for d in [
+            r"C:\Windows\System32",
+            r"C:\Windows",
+            r"C:\Windows\System32\WindowsPowerShell\v1.0",
+            r"C:\Windows\System32\wbem",
+        ]:
+            priority_dirs.append(d)
+
     current_path = env.get("PATH", "")
     path_lower = current_path.lower()
-    for d in reversed(python_dirs):
+    for d in reversed(priority_dirs):
         if d.lower() not in path_lower:
             current_path = d + os.pathsep + current_path
             path_lower = current_path.lower()
     env["PATH"] = current_path
+
     if extra:
         env.update(extra)
     return env

@@ -1,10 +1,10 @@
-# SAPladdin
+﻿# SAPladdin
 
-**MCP Server para SAP Basis Admin, Linux Admin, Windows Admin, DBAs y operación práctica sobre Google Cloud.**
+**MCP Server para SAP Basis Admin, Linux Admin, Windows Admin, DBAs y operaciÃ³n prÃ¡ctica sobre Google Cloud.**
 
-Conecta Claude o cualquier cliente MCP compatible a sistemas reales: filesystem local, procesos, SSH, SAP Basis, Oracle, SQL Server, HANA Cloud y ahora Google Compute Engine vía `gcloud`.
+Conecta Claude o cualquier cliente MCP compatible a sistemas reales: filesystem local, procesos, SSH, SAP Basis, Oracle, SQL Server, HANA Cloud y ahora Google Compute Engine vÃ­a `gcloud`.
 
-Guía de conexión a clientes MCP y LLM apps:
+GuÃ­a de conexiÃ³n a clientes MCP y LLM apps:
 
 - [docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md)
 
@@ -12,16 +12,16 @@ Guía de conexión a clientes MCP y LLM apps:
 
 ## Capacidades - 78 tools
 
-| Módulo | Tools | Descripción |
+| MÃ³dulo | Tools | DescripciÃ³n |
 |---|---|---|
 | **Filesystem** (9) | read, write, edit, search, list... | Operaciones locales con sandbox |
 | **Terminal** (2) | execute_command, streaming | Shell local PS/bash |
-| **Procesos** (7) | list, kill, start, interact... | Gestión + REPLs interactivos |
+| **Procesos** (7) | list, kill, start, interact... | GestiÃ³n + REPLs interactivos |
 | **HANA Cloud** (9) | test, query, ddl, schemas, backup... | SAP HANA Cloud (`hdbcli`) |
-| **Google Cloud** (11) | config, list, start, stop, create, firewall, export... | Operación GCE/GCP reutilizando `gcloud` |
-| **Joplin** (14) | status, config, permisos, list/search/get/create/update/delete | Gestión documental de notas/libretas vía Web Clipper |
+| **Google Cloud** (11) | config, list, start, stop, create, firewall, export... | OperaciÃ³n GCE/GCP reutilizando `gcloud` |
+| **Joplin** (14) | status, config, permisos, list/search/get/create/update/delete | GestiÃ³n documental de notas/libretas vÃ­a Web Clipper |
 | **SSH** (6) | connect, execute, upload, download... | Acceso remoto Linux/Windows |
-| **SAP Basis** (11) | instances, processes, alerts, log... | NetWeaver vía SSH |
+| **SAP Basis** (11) | instances, processes, alerts, log... | NetWeaver vÃ­a SSH |
 | **Oracle** (7) | test, query, schemas, tablespace, rman... | Oracle DB thin mode |
 | **SQL Server** (5) | test, query, databases, agent jobs... | SQL Server on-premise/Azure |
 | **Hosts** (5) | list, add, remove, test... | Inventario manual de sistemas |
@@ -30,7 +30,7 @@ Guía de conexión a clientes MCP y LLM apps:
 
 ## Google Cloud
 
-La integración nueva es deliberadamente `gcloud-first`.
+La integraciÃ³n nueva es deliberadamente `gcloud-first`.
 
 No usa el SDK Python de GCP. Usa wrappers MCP sobre `gcloud --format=json` porque en este entorno ya estaban validados:
 
@@ -38,7 +38,7 @@ No usa el SDK Python de GCP. Usa wrappers MCP sobre `gcloud --format=json` porqu
 - proyecto activo `project-0bbed615-3203-4957-a27`
 - service account funcional con JSON local
 - operaciones reales de create/start/stop/list sobre VMs
-- troubleshooting de SSH, firewall, IP pública y red Docker en GCE
+- troubleshooting de SSH, firewall, IP pÃºblica y red Docker en GCE
 
 Tools incluidas:
 
@@ -54,16 +54,16 @@ Tools incluidas:
 - `gcloud_instance_network_report`
 - `gcloud_export_instance_to_host`
 
-La idea no es solo aprovisionar VMs, sino poder diagnosticar rápido lo que suele romperse en la práctica: IP pública, reglas de firewall, puertos, tags y síntomas típicos de red en hosts Docker sobre GCE.
+La idea no es solo aprovisionar VMs, sino poder diagnosticar rÃ¡pido lo que suele romperse en la prÃ¡ctica: IP pÃºblica, reglas de firewall, puertos, tags y sÃ­ntomas tÃ­picos de red en hosts Docker sobre GCE.
 
 ---
 
 ## Joplin (Web Clipper)
 
-Integración MCP nativa para que cualquier LLM cliente use Joplin de forma consistente:
+IntegraciÃ³n MCP nativa para que cualquier LLM cliente use Joplin de forma consistente:
 
 - lectura: `joplin_list_notes`, `joplin_get_note`, `joplin_list_notebooks`
-- búsqueda profunda: `joplin_search_notes` (soporta sintaxis avanzada de Joplin: `tag:`, `notebook:`, `any:`...)
+- bÃºsqueda profunda: `joplin_search_notes` (soporta sintaxis avanzada de Joplin: `tag:`, `notebook:`, `any:`...)
 - escritura: `joplin_create_note`, `joplin_update_note`, `joplin_delete_note`
 - libretas: `joplin_create_notebook`, `joplin_rename_notebook`, `joplin_delete_notebook`
 - control operativo: `joplin_status`, `joplin_get_config`, `joplin_set_config`, `joplin_set_permissions`
@@ -72,7 +72,7 @@ Config local opcional en `config/joplin_config.yaml` (ignorado por git), ejemplo
 
 ---
 
-## Instalación rápida
+## InstalaciÃ³n rÃ¡pida
 
 ```bat
 cd C:\Users\Edu\SAPladdin
@@ -90,9 +90,9 @@ copy config\gcloud_config.yaml.example config\gcloud_config.yaml
 
 ---
 
-## Configuración Claude Desktop
+## ConfiguraciÃ³n Claude Desktop
 
-Añadir a `%APPDATA%\Claude\claude_desktop_config.json`:
+AÃ±adir a `%APPDATA%\Claude\claude_desktop_config.json`:
 
 ```json
 {
@@ -107,7 +107,7 @@ Añadir a `%APPDATA%\Claude\claude_desktop_config.json`:
 
 ---
 
-## Configuración Google Cloud
+## ConfiguraciÃ³n Google Cloud
 
 `config/gcloud_config.yaml`:
 
@@ -122,11 +122,11 @@ gcloud:
   command_timeout_seconds: 60
 ```
 
-El fichero real está en `.gitignore`, así que se puede guardar la ruta local del JSON sin contaminar el repo.
+El fichero real estÃ¡ en `.gitignore`, asÃ­ que se puede guardar la ruta local del JSON sin contaminar el repo.
 
 ---
 
-## Uso básico
+## Uso bÃ¡sico
 
 ```text
 # Hosts manuales
@@ -167,21 +167,43 @@ hosts:
     tags: [sap, production, abap]
 ```
 
-`hosts.yaml` sigue siendo el inventario manual para SSH/DB. Google Cloud no depende de ese fichero, porque el inventario de VMs sale dinámicamente del proyecto GCP.
+`hosts.yaml` sigue siendo el inventario manual para SSH/DB. Google Cloud no depende de ese fichero, porque el inventario de VMs sale dinÃ¡micamente del proyecto GCP.
 
 ---
 
 ## Seguridad
 
-- `config/hosts.yaml` en `.gitignore`
-- `config/hana_config.yaml` en `.gitignore`
-- `config/gcloud_config.yaml` en `.gitignore`
-- DML en Oracle/MSSQL requiere `confirm_dml=True`
-- DDL en HANA requiere `confirm=True`
-- `_safe_identifier()` y validaciones de entrada en los módulos de datos
-- comandos locales filtrados por `security_config.yaml`
+### Modelo de acceso
 
----
+SAPladdin usa el perfil de **administrador de sistemas con acceso total**, pensado para uso personal en un entorno controlado. La configuraciÃ³n estÃ¡ en `config/security_config.yaml`.
+
+**Filesystem:**  
+`allowed_directories: []` â€” acceso a todo el sistema de archivos, sin restricciÃ³n de ruta. Equivalente al modo sin sandbox de Desktop Commander. Esto permite operar sobre cualquier ruta del disco (C:\, D:\, rutas de programa, config de sistema) sin tener que declarar cada directorio.
+
+**Comandos bloqueados** (solo lo irreversiblemente catastrÃ³fico):
+
+| Comando | RazÃ³n |
+|---|---|
+| `format c/d/e:` | DestrucciÃ³n de particiÃ³n |
+| `diskpart` / `fdisk` | ManipulaciÃ³n de tabla de particiones |
+| `mimikatz` | Credential dumping / ataque |
+| `shutdown /s` / `halt` / `poweroff` | Apagado accidental del sistema |
+
+Todo lo demÃ¡s estÃ¡ disponible: `icacls`, `takeown`, `reg add/delete`, `netsh`, `net user`, `net localgroup`, `iptables`, `gcloud`...
+
+**Ficheros de credenciales** (en `.gitignore`, nunca al repo):
+- `config/hosts.yaml`
+- `config/hana_config.yaml`
+- `config/gcloud_config.yaml`
+- `config/joplin_config.yaml`
+- `config/security_config.yaml`
+
+**Confirmaciones explÃ­citas requeridas:**
+- DML en Oracle/MSSQL â†’ `confirm_dml=True`
+- DDL en HANA â†’ `confirm=True`
+- Delete de notas Joplin â†’ `confirm=True`
+
+
 
 ## Tests
 
@@ -189,13 +211,13 @@ hosts:
 .venv\Scripts\python.exe -m pytest tests\ -q
 ```
 
-Suite actual esperada tras la ampliación Google Cloud: `30 passed`.
+Suite actual esperada tras la ampliaciÃ³n Google Cloud: `30 passed`.
 
 ---
 
 ## Stack
 
-Python 3.11+ · fastmcp · paramiko · oracledb · pyodbc · hdbcli · psutil · gcloud CLI
+Python 3.11+ Â· fastmcp Â· paramiko Â· oracledb Â· pyodbc Â· hdbcli Â· psutil Â· gcloud CLI
 
 ---
 

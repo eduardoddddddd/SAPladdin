@@ -97,26 +97,22 @@ mcp = FastMCP(
     ),
 )
 
-# Filesystem
 for _t in [read_file, write_file, search_files, edit_file_diff,
            list_directory, get_file_info, create_directory,
            move_file, read_multiple_files]:
     mcp.tool()(_t)
 
-# Terminal + Procesos
 for _t in [execute_command, execute_command_streaming,
            list_processes, kill_process,
            start_process, read_process_output,
            interact_with_process, list_sessions, force_terminate]:
     mcp.tool()(_t)
 
-# SAP HANA Cloud (9)
 for _t in [hana_test_connection, hana_execute_query, hana_execute_ddl,
            hana_list_schemas, hana_list_tables, hana_describe_table,
            hana_get_row_count, hana_get_system_info, hana_backup_catalog]:
     mcp.tool()(_t)
 
-# Google Cloud (11)
 for _t in [gcloud_get_config, gcloud_set_defaults, gcloud_list_instances,
            gcloud_describe_instance, gcloud_start_instance, gcloud_stop_instance,
            gcloud_create_instance, gcloud_list_firewall_rules,
@@ -124,7 +120,6 @@ for _t in [gcloud_get_config, gcloud_set_defaults, gcloud_list_instances,
            gcloud_export_instance_to_host]:
     mcp.tool()(_t)
 
-# Joplin Web Clipper (14)
 for _t in [
     joplin_status, joplin_get_config, joplin_set_config, joplin_set_permissions,
     joplin_list_notebooks, joplin_create_notebook, joplin_rename_notebook, joplin_delete_notebook,
@@ -133,7 +128,6 @@ for _t in [
 ]:
     mcp.tool()(_t)
 
-# SSH + SAP Basis
 if _SSH_AVAILABLE:
     for _t in [ssh_connect, ssh_execute, ssh_run_bash_script, ssh_upload, ssh_download,
                ssh_list_connections, ssh_disconnect,
@@ -145,7 +139,6 @@ if _SSH_AVAILABLE:
                sap_abap_short_dumps]:
         mcp.tool()(_t)
 
-# Oracle DB (7)
 if _ORACLE_AVAILABLE:
     for _t in [oracle_test_connection, oracle_execute_query,
                oracle_list_schemas, oracle_describe_table,
@@ -153,14 +146,12 @@ if _ORACLE_AVAILABLE:
                oracle_backup_status]:
         mcp.tool()(_t)
 
-# SQL Server (5)
 if _MSSQL_AVAILABLE:
     for _t in [mssql_test_connection, mssql_execute_query,
                mssql_list_databases, mssql_describe_table,
                mssql_check_agent_jobs]:
         mcp.tool()(_t)
 
-# Hosts (5)
 for _t in [list_hosts, get_host, add_host, remove_host, test_host_connection]:
     mcp.tool()(_t)
 
