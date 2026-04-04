@@ -14,6 +14,7 @@ Conecta Claude o cualquier cliente MCP compatible a:
 - SQL Server
 - SAP HANA Cloud
 - Google Compute Engine vía `gcloud`
+- Joplin (Web Clipper local `127.0.0.1:41184`)
 
 Local:
 
@@ -27,9 +28,33 @@ Base:
 
 ## Estado actual
 
-Sesión de ampliación Google Cloud completada el `2026-03-30`.
+### Sesión 2026-04-04 — Integración Joplin + LM Studio
 
-La nueva capacidad no usa el SDK Python de GCP. Usa wrappers sobre `gcloud --format=json` para reutilizar exactamente el flujo que ya estaba validado en Windows:
+Cambios realizados en esta sesión:
+
+**Joplin Web Clipper integrado en SAPladdin:**
+- `config/joplin_config.yaml` configurado con `base_url: http://127.0.0.1:41184` y token real del Web Clipper local.
+- El fichero está en `.gitignore` — el token no se sube a GitHub.
+- Validado: `joplin_status`, `joplin_create_note`, `joplin_get_note` funcionan correctamente desde LM Studio con Nemotron.
+
+**SAPladdin conectado a LM Studio:**
+- `C:\Users\Edu\.lmstudio\mcp.json` actualizado con `"timeout": 60000` para evitar timeouts con modelos razonadores.
+- SAPladdin cargado y validado en LM Studio 0.4.9 con `nvidia/nemotron-3-nano-4b`.
+
+**Fix Prompt Template Gemma 4 26B en LM Studio:**
+- Creado `C:\Users\Edu\.lmstudio\.internal\user-concrete-model-default-config\lmstudio-community\gemma-4-26B-A4B-it-GGUF\gemma-4-26B-A4B-it-Q4_K_M.json`
+- Formato correcto: clave `llm.prediction.promptTemplate` con estructura `preset/operation/load/prediction`.
+- Parches aplicados al template Jinja del Gemma 4:
+  - 3 líneas defensivas al inicio: `tools`, `messages`, `add_generation_prompt` con defaults.
+  - Guards `is defined and is string` en los if/elif de `value['type'] | upper`.
+  - Línea de output final protegida para tipos array o undefined.
+- Error resuelto: `Cannot apply filter "upper" to type: UndefinedValue`.
+
+---
+
+### Sesión 2026-03-30 — Ampliación Google Cloud
+
+La nueva capacidad no usa el SDK Python de GCP. Usa wrappers sobre `gcloud --format=json`:
 
 - `gcloud` instalado localmente
 - project activo: `project-0bbed615-3203-4957-a27`
@@ -45,7 +70,7 @@ La nueva capacidad no usa el SDK Python de GCP. Usa wrappers sobre `gcloud --for
 .venv\Scripts\python.exe -m pytest tests\ -q
 ```
 
-Suite esperada tras la ampliación:
+Suite esperada:
 
 - `29 passed`
 
@@ -57,7 +82,7 @@ Ficheros de test:
 
 ---
 
-## Tools disponibles: 64 total
+## Tools disponibles: 64 total + Joplin (12)
 
 ### Filesystem (9)
 
@@ -95,6 +120,10 @@ Ficheros de test:
 
 `list_hosts`, `get_host`, `add_host`, `remove_host`, `test_host_connection`
 
+### Joplin (12) — nuevo 2026-04-04
+
+`joplin_status`, `joplin_get_config`, `joplin_set_config`, `joplin_set_permissions`, `joplin_list_notebooks`, `joplin_list_notes`, `joplin_get_note`, `joplin_search_notes`, `joplin_create_note`, `joplin_update_note`, `joplin_delete_note`, `joplin_create_notebook`, `joplin_rename_notebook`, `joplin_delete_notebook`
+
 ---
 
 ## Estructura relevante
@@ -106,7 +135,8 @@ SAPladdin/
 │   ├── hosts.yaml.example
 │   ├── hana_config.yaml.example
 │   ├── gcloud_config.yaml.example
-│   └── gcloud_config.yaml
+│   ├── gcloud_config.yaml          ← gitignore
+│   └── joplin_config.yaml          ← gitignore (contiene token)
 ├── core/
 │   ├── server.py
 │   ├── hosts.py
@@ -117,12 +147,41 @@ SAPladdin/
 │       ├── sap_basis.py
 │       ├── oracle.py
 │       ├── mssql.py
-│       └── hosts_mgmt.py
+│       ├── hosts_mgmt.py
+│       └── joplin.py               ← nuevo
 └── tests/
     ├── test_filesystem_and_hosts.py
     ├── test_sap_basis.py
     └── test_gcloud.py
 ```
+
+---
+
+## Configuración Joplin
+
+`config/joplin_config.yaml` (gitignore):
+
+```yaml
+joplin:
+  base_url: http://127.0.0.1:41184
+  token: 'TU_TOKEN_AQUI'
+  permissions:
+    allow_create: true
+    allow_update: true
+    allow_delete: false
+    allow_manage_notebooks: false
+```
+
+El token se obtiene en Joplin Desktop → Tools → Options → Web Clipper.
+
+---
+
+## Configuración LM Studio (externa al repo)
+
+Ficheros relevantes en `C:\Users\Edu\.lmstudio\`:
+
+- `mcp.json` — SAPladdin registrado con `timeout: 60000`
+- `.internal\user-concrete-model-default-config\lmstudio-community\gemma-4-26B-A4B-it-GGUF\` — template Jinja parchado
 
 ---
 
@@ -133,7 +192,8 @@ SAPladdin/
 - La fuente de verdad para VMs GCP es dinámica: `gcloud compute instances list`.
 - La configuración GCP vive en `config/gcloud_config.yaml`.
 - La integración MCP de Google Cloud es `gcloud-first`, no `google-cloud-python-first`.
-- El valor operativo no está solo en crear/parar VMs: también en diagnosticar red, firewall, tags e IP pública.
+- Joplin se integra vía Web Clipper local (no remoto) desde SAPladdin; el MCP remoto SSE sigue siendo el canal de Claude web.
+- El token de Joplin nunca va a GitHub — `.gitignore` incluye `config/joplin_config.yaml`.
 
 ---
 
@@ -152,51 +212,42 @@ gcloud:
   command_timeout_seconds: 60
 ```
 
-Notas:
-
-- `config/gcloud_config.yaml` está en `.gitignore`
-- el JSON local se reutiliza como credencial operativa
-- `gcloud.cmd` es el binario previsto en Windows
-
 ---
 
 ## Uso recomendado
 
-Para inventario:
+### Joplin
 
-- `gcloud_list_instances()`
-- `gcloud_describe_instance(instance_name="abap-docker-host")`
+```python
+joplin_status()
+joplin_search_notes(query="KeplerDB")
+joplin_create_note(title="Sesión 2026-04-04", body="...", notebook="Bitácora")
+joplin_update_note(note_id="abc123", body="contenido actualizado")
+```
 
-Para operación:
+### Google Cloud
 
-- `gcloud_start_instance(instance_name="sap-abap-trial")`
-- `gcloud_stop_instance(instance_name="codex-test-vm")`
-- `gcloud_create_instance(instance_name="test-vm", machine_type="e2-micro")`
-
-Para troubleshooting:
-
-- `gcloud_list_firewall_rules(port=22)`
-- `gcloud_check_ssh_access(instance_name="abap-docker-host")`
-- `gcloud_instance_network_report(instance_name="abap-docker-host", ports="22,3200,50000")`
-
-Para encadenar con SSH/SAP ya existente:
-
-- `gcloud_export_instance_to_host(instance_name="abap-docker-host", alias="a4hgcp", key_path="C:/Users/Edu/.ssh/google_compute_engine")`
+```python
+gcloud_list_instances()
+gcloud_describe_instance(instance_name="abap-docker-host")
+gcloud_start_instance(instance_name="sap-abap-trial")
+gcloud_export_instance_to_host(instance_name="abap-docker-host", alias="a4hgcp", key_path="C:/Users/Edu/.ssh/google_compute_engine")
+```
 
 ---
 
-## Conocimiento operativo importante heredado de la sesión anterior
+## Conocimiento operativo importante
 
 - El firewall GCP abierto no garantiza servicio accesible.
 - SSH puede estar bien y aun así SAP o Docker no salir a internet.
 - En Docker sobre GCE, un caso real ya validado fue `net.ipv4.ip_forward = 0`.
-- Si `22/tcp` abre pero `3200` o `50000` no, el problema ya no es acceso base a la VM sino publicación del servicio o forwarding local.
-- La nueva tool `gcloud_instance_network_report` está pensada exactamente para ese tipo de diagnóstico.
+- LM Studio tiene timeout corto para MCPs (~10-15s) — con modelos razonadores (Nemotron, Gemma) usar `"timeout": 60000` en `mcp.json`.
+- El template Jinja de Gemma 4 (lmstudio-community) tiene un bug con `value['type'] | upper` cuando el parámetro no tiene campo `type` definido — solucionado con override local.
 
 ---
 
-## Próximos pasos sugeridos
+## Próximos pasos
 
-1. Añadir una tool opcional para exportar una VM GCP al inventario `hosts.yaml`.
-2. Añadir una tool de `gcloud compute ssh` si quieres un wrapper nativo aparte del SSH manual actual.
-3. Añadir operaciones de discos estáticos e IPs reservadas si el laboratorio crece.
+1. Refactorización profunda de Joplin MCP (sesión pendiente).
+2. Añadir tool `gcloud compute ssh` wrapper nativo.
+3. Añadir operaciones de discos estáticos e IPs reservadas.
