@@ -1,105 +1,140 @@
 # SAPladdin
 
-**MCP Server para SAP Basis Admin, Linux Admin, Windows Admin, DBAs y operación práctica sobre Google Cloud.**
+**SAPladdin** is a Python/FastMCP server for real technical operations across SAP Basis, Linux/Windows administration, Google Cloud, Joplin and enterprise databases such as SAP HANA, Oracle and SQL Server.
 
-Conecta Claude o cualquier cliente MCP compatible a sistemas reales: filesystem local, procesos, SSH, SAP Basis, Oracle, SQL Server, HANA Cloud y Google Compute Engine vía `gcloud`.
+It gives MCP-compatible AI clients a controlled tool layer for reading, diagnosing and operating real systems from natural-language workflows.
 
-## Infografía
-<img width="2048" height="1152" alt="image" src="https://github.com/user-attachments/assets/d93150ad-c687-4f04-b59d-18a37fbdb8ec" />
+![SAPladdin MCP infographic](https://github.com/user-attachments/assets/d93150ad-c687-4f04-b59d-18a37fbdb8ec)
 
+## What Is MCP?
 
+**MCP**, or **Model Context Protocol**, is a protocol that lets AI applications connect to external tools, data sources and systems through a standard interface.
 
-Guía de conexión a clientes MCP y LLM apps:
+Without MCP, an LLM is usually limited to what is already in the conversation, a file upload, or custom one-off integrations. With MCP, the model can discover and call tools exposed by a server: list files, query a database, inspect a remote host, read documentation, create a note, or run an operational check.
 
-- [docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md)
+In practical terms:
 
----
+- the **AI client** is the application where the user talks to the model, such as Codex, Claude Desktop, Cursor, Claude Code or LM Studio;
+- the **MCP server** is the local or remote process that exposes tools;
+- the **tools** are strongly defined operations such as `gcloud_list_instances`, `ssh_execute`, `sap_check_work_processes` or `joplin_search_notes`;
+- the **target systems** are the real services behind those tools: filesystems, shells, SSH hosts, SAP systems, databases, Google Cloud and Joplin.
 
-## Capacidades — 78 tools
+SAPladdin is the MCP server in that chain.
 
-| Módulo | Tools | Descripción |
+## What SAPladdin Does
+
+SAPladdin turns an AI assistant into an operator-facing control plane for infrastructure and SAP-adjacent work.
+
+It is designed for technical users who need fast, repeatable access to operational context without manually switching between terminals, database clients, SAP checks, cloud consoles and documentation systems.
+
+Typical workflows include:
+
+- checking SAP instances, work processes, dispatcher queues, kernel information, alerts, system logs and short dumps;
+- connecting to Linux or Windows systems over SSH and executing controlled commands;
+- listing and diagnosing Google Compute Engine instances through the local `gcloud` CLI;
+- querying HANA Cloud, Oracle and SQL Server for operational checks;
+- reading, searching and writing Joplin notes through the local Web Clipper API;
+- working with local files, processes and shell sessions from a single MCP-compatible client;
+- maintaining a manual host inventory for systems that are not discovered dynamically.
+
+## Design Goals
+
+SAPladdin is intentionally practical rather than theoretical.
+
+| Goal | Meaning |
+|---|---|
+| Real operations | Tools are built around tasks that administrators actually perform: check, diagnose, list, start, stop, query, export and document. |
+| MCP-native | Capabilities are exposed as MCP tools, so compatible clients can discover and call them consistently. |
+| Local-first | Configuration and credentials stay local. Sensitive files are excluded from git. |
+| `gcloud`-first for GCP | Google Cloud operations reuse the already configured `gcloud` CLI instead of requiring a separate SDK-first setup. |
+| Modular tools | SAP, SSH, files, processes, GCP, Joplin and databases live in separate modules. |
+| Conservative safety | Destructive operations require explicit confirmation where implemented, and secrets are kept out of the repository. |
+
+## Architecture
+
+```text
+User
+  |
+  v
+MCP-compatible AI client
+  |
+  v
+SAPladdin MCP server
+  |
+  +-- Filesystem and local shell
+  +-- Local processes and interactive sessions
+  +-- SSH targets
+  +-- SAP Basis checks over SSH / sapcontrol
+  +-- SAP HANA Cloud
+  +-- Oracle
+  +-- SQL Server
+  +-- Google Cloud through gcloud
+  +-- Joplin through Web Clipper
+```
+
+The client sends tool calls to SAPladdin. SAPladdin performs the actual local or remote operation and returns structured output that the AI client can summarize, compare, explain or use as the next step in a workflow.
+
+## Capabilities
+
+SAPladdin currently exposes a broad toolset for system administration and SAP-related operations.
+
+| Area | Examples | Purpose |
 |---|---|---|
-| **Filesystem** (9) | read, write, edit, search, list... | Operaciones locales con sandbox |
-| **Terminal** (2) | execute_command, streaming | Shell local PS/bash |
-| **Procesos** (7) | list, kill, start, interact... | Gestión + REPLs interactivos |
-| **HANA Cloud** (9) | test, query, ddl, schemas, backup... | SAP HANA Cloud (`hdbcli`) |
-| **Google Cloud** (11) | config, list, start, stop, create, firewall, export... | Operación GCE/GCP reutilizando `gcloud` |
-| **Joplin** (14) | status, config, permisos, list/search/get/create/update/delete | Gestión documental vía Web Clipper local |
-| **SSH** (6) | connect, execute, upload, download... | Acceso remoto Linux/Windows |
-| **SAP Basis** (11) | instances, processes, alerts, log... | NetWeaver vía SSH |
-| **Oracle** (7) | test, query, schemas, tablespace, rman... | Oracle DB thin mode |
-| **SQL Server** (5) | test, query, databases, agent jobs... | SQL Server on-premise/Azure |
-| **Hosts** (5) | list, add, remove, test... | Inventario manual de sistemas |
+| Filesystem | read, write, edit, search, list | Inspect and manage local files within the configured safety model. |
+| Terminal | command execution, streaming output | Run local PowerShell or shell commands from an MCP client. |
+| Processes | list, start, kill, interact, sessions | Manage local processes and interactive sessions. |
+| SSH | connect, execute, upload, download | Operate Linux or Windows targets over SSH. |
+| SAP Basis | instances, work processes, alerts, logs, dumps | Diagnose SAP NetWeaver-style systems from conversation. |
+| SAP HANA Cloud | test, query, DDL, schemas, backup catalog | Query and inspect HANA Cloud environments. |
+| Oracle | test, query, schemas, tablespace, backup status | Perform Oracle DBA-oriented checks. |
+| SQL Server | test, query, databases, table description, agent jobs | Perform SQL Server operational checks. |
+| Google Cloud | config, list, describe, start, stop, create, firewall, network report | Operate Google Compute Engine through `gcloud`. |
+| Joplin | status, search, get, create, update, notebooks, permissions | Use Joplin as an operational knowledge base. |
+| Hosts inventory | list, add, remove, test | Maintain reusable system aliases for SSH and database work. |
 
----
+For a deeper operational snapshot, see:
 
-## Google Cloud
+- [`docs/CONTEXT.md`](docs/CONTEXT.md)
+- [`docs/SAPladdin_MCP_Informe_A4H_20260330.md`](docs/SAPladdin_MCP_Informe_A4H_20260330.md)
 
-La integración es deliberadamente `gcloud-first`.
+## Installation Overview
 
-No usa el SDK Python de GCP. Usa wrappers MCP sobre `gcloud --format=json` porque en este entorno ya estaban validados:
+This README keeps installation intentionally short. Client-specific setup belongs in [`docs/CLIENT_SETUP.md`](docs/CLIENT_SETUP.md).
 
-- `gcloud` instalado en Windows
-- proyecto activo `project-0bbed615-3203-4957-a27`
-- service account funcional con JSON local
-- operaciones reales de create/start/stop/list sobre VMs
-- troubleshooting de SSH, firewall, IP pública y red Docker en GCE
-
-Tools incluidas:
-
-- `gcloud_get_config`
-- `gcloud_set_defaults`
-- `gcloud_list_instances`
-- `gcloud_describe_instance`
-- `gcloud_start_instance`
-- `gcloud_stop_instance`
-- `gcloud_create_instance`
-- `gcloud_list_firewall_rules`
-- `gcloud_check_ssh_access`
-- `gcloud_instance_network_report`
-- `gcloud_export_instance_to_host`
-
-La idea no es solo aprovisionar VMs, sino poder diagnosticar rápido lo que suele romperse en la práctica: IP pública, reglas de firewall, puertos, tags y síntomas típicos de red en hosts Docker sobre GCE.
-
----
-
-## Joplin (Web Clipper)
-
-Integración MCP nativa para que cualquier LLM cliente use Joplin de forma consistente.
-
-Conecta vía Web Clipper local en `127.0.0.1:41184`. Config local en `config/joplin_config.yaml` (ignorado por git), ejemplo en `config/joplin_config.yaml.example`.
-
-Tools disponibles (14):
-
-- lectura: `joplin_list_notes`, `joplin_get_note`, `joplin_list_notebooks`
-- búsqueda profunda: `joplin_search_notes` (soporta sintaxis avanzada de Joplin: `tag:`, `notebook:`, `any:`...)
-- escritura: `joplin_create_note`, `joplin_update_note`, `joplin_delete_note`
-- libretas: `joplin_create_notebook`, `joplin_rename_notebook`, `joplin_delete_notebook`
-- control operativo: `joplin_status`, `joplin_get_config`, `joplin_set_config`, `joplin_set_permissions`
-
----
-
-## Instalación rápida
+### Option 1: Quick Windows Install
 
 ```bat
+git clone https://github.com/eduardoddddddd/SAPladdin.git C:\Users\Edu\SAPladdin
 cd C:\Users\Edu\SAPladdin
 scripts\_install.bat
 ```
 
-O manual:
+### Option 2: Manual Virtual Environment
 
 ```bat
+cd C:\Users\Edu\SAPladdin
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -e .
 copy config\hosts.yaml.example config\hosts.yaml
 copy config\gcloud_config.yaml.example config\gcloud_config.yaml
+copy config\joplin_config.yaml.example config\joplin_config.yaml
 ```
 
----
+### Option 3: Development Install
 
-## Configuración Claude Desktop
+```bat
+cd C:\Users\Edu\SAPladdin
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
+```
 
-Añadir a `%APPDATA%\Claude\claude_desktop_config.json`:
+For full client configuration, including Codex, Claude Desktop, Claude Code, Cursor, LM Studio and HTTP/SSE notes, use:
+
+- [`docs/CLIENT_SETUP.md`](docs/CLIENT_SETUP.md)
+
+## Minimal MCP Client Configuration
+
+Most local clients use a `stdio` MCP configuration similar to this:
 
 ```json
 {
@@ -112,152 +147,151 @@ Añadir a `%APPDATA%\Claude\claude_desktop_config.json`:
 }
 ```
 
-Consulta [docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md) para configuración en Codex, Cursor, Claude Code y LM Studio.
+This is only the minimal shape. Exact file paths and configuration locations depend on the client.
 
----
+See [`docs/CLIENT_SETUP.md`](docs/CLIENT_SETUP.md) for the dedicated setup guide.
 
-## Configuración Google Cloud
+## Configuration Files
 
-`config/gcloud_config.yaml`:
+SAPladdin uses example configuration files in `config/` and keeps real credentials out of git.
 
-```yaml
-gcloud:
-  project: "project-0bbed615-3203-4957-a27"
-  default_zone: "europe-west1-b"
-  default_region: "europe-west1"
-  ssh_user: "Edu"
-  service_account_key_file: "C:/Users/Edu/Downloads/project-0bbed615-3203-4957-a27-677a9255cbd7.json"
-  gcloud_bin: "C:/Users/Edu/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd"
-  command_timeout_seconds: 60
-```
+| File | Purpose | In git |
+|---|---|---|
+| `config/hosts.yaml.example` | Example manual host inventory | Yes |
+| `config/gcloud_config.yaml.example` | Example Google Cloud CLI configuration | Yes |
+| `config/hana_config.yaml.example` | Example HANA Cloud configuration | Yes |
+| `config/joplin_config.yaml.example` | Example Joplin Web Clipper configuration | Yes |
+| `config/security_config.yaml` | Safety and command/path rules | Yes |
+| `config/hosts.yaml` | Real local host inventory | No |
+| `config/gcloud_config.yaml` | Real local GCP settings | No |
+| `config/hana_config.yaml` | Real local HANA settings | No |
+| `config/joplin_config.yaml` | Real local Joplin token/settings | No |
 
-El fichero real está en `.gitignore`, así que se puede guardar la ruta local del JSON sin contaminar el repo.
+Do not commit real tokens, service account keys, database credentials or host secrets.
 
----
+## Google Cloud Model
 
-## Configuración Joplin
+The Google Cloud integration is deliberately `gcloud`-first.
 
-`config/joplin_config.yaml` (gitignore):
+SAPladdin wraps `gcloud --format=json` commands because many operator workstations already have a working Google Cloud CLI configuration, active project, authentication and SSH setup. This avoids duplicating authentication flows in Python and keeps the source of truth aligned with the local operator environment.
 
-```yaml
-joplin:
-  base_url: http://127.0.0.1:41184
-  token: 'TU_TOKEN_AQUI'
-  permissions:
-    allow_create: true
-    allow_update: true
-    allow_delete: false
-    allow_manage_notebooks: false
-```
+Google Cloud tools include instance listing, description, start/stop operations, VM creation, firewall inspection, SSH access checks, network reports and exporting a discovered instance into the manual host inventory.
 
-El token se obtiene en Joplin Desktop > Tools > Options > Web Clipper.
+For detailed operational context, see [`docs/CONTEXT.md`](docs/CONTEXT.md).
 
----
+## Joplin Integration
 
-## Uso básico
+SAPladdin integrates with Joplin through the local Web Clipper API, typically available at:
 
 ```text
-# Hosts manuales
-list_hosts()
-
-# SAP Basis por SSH
-ssh_connect(alias="sapapp1")
-sap_list_instances(connection="sapapp1")
-sap_check_work_processes(instance_nr="00", connection="sapapp1")
-
-# Oracle / SQL Server / HANA
-oracle_test_connection(alias="oraprd")
-mssql_check_agent_jobs(alias="sqlprd", only_failed=True)
-hana_backup_catalog(days_back=3)
-
-# Google Cloud
-gcloud_get_config()
-gcloud_list_instances(status_filter="RUNNING")
-gcloud_describe_instance(instance_name="abap-docker-host")
-gcloud_check_ssh_access(instance_name="abap-docker-host")
-gcloud_instance_network_report(instance_name="abap-docker-host", ports="22,3200,50000")
-gcloud_export_instance_to_host(instance_name="abap-docker-host", alias="a4hgcp", key_path="C:/Users/Edu/.ssh/google_compute_engine")
-
-# Joplin
-joplin_status()
-joplin_search_notes(query="KeplerDB")
-joplin_create_note(title="Sesión 2026-04-14", body="...", notebook="Bitácora")
+http://127.0.0.1:41184
 ```
 
----
+This allows an MCP client to use Joplin as a working operational knowledge base: search previous notes, retrieve details, create new records, update existing notes and manage notebooks when permissions allow it.
 
-## Hosts soportados (`config/hosts.yaml`)
+The real token belongs in local config only and must not be committed.
 
-```yaml
-hosts:
-  - name: sap_prod_app
-    alias: sapapp1
-    type: linux_ssh
-    ip: 192.168.1.10
-    port: 22
-    user: root
-    key_path: ~/.ssh/id_rsa
-    tags: [sap, production, abap]
+## Example Prompts
+
+Once SAPladdin is connected to an MCP client, prompts can stay close to how an operator would ask for work:
+
+```text
+List running Google Cloud instances and summarize anything unusual.
 ```
 
-`hosts.yaml` es el inventario manual para SSH/DB. Google Cloud no depende de este fichero — el inventario de VMs sale dinámicamente del proyecto GCP vía `gcloud compute instances list`.
+```text
+Connect to host alias sapapp1, check SAP instances and show work process status.
+```
 
----
+```text
+Search Joplin for notes about the last A4H incident and summarize the timeline.
+```
 
-## Seguridad
+```text
+Check Oracle tablespace status for alias oraprd and highlight critical usage.
+```
 
-### Modelo de acceso
+```text
+Run a network report for the GCE instance abap-docker-host on ports 22, 3200 and 50000.
+```
 
-SAPladdin usa el perfil de **administrador de sistemas con acceso total**, pensado para uso personal en un entorno controlado. La configuración está en `config/security_config.yaml`.
+## Repository Layout
 
-**Filesystem:**
-`allowed_directories: []` → acceso a todo el sistema de archivos, sin restricción de ruta. Equivalente al modo sin sandbox de Desktop Commander. Permite operar sobre cualquier ruta del disco sin declarar cada directorio.
+```text
+SAPladdin/
+  config/                 Example configuration and safety settings
+  core/
+    server.py             FastMCP server assembly
+    hosts.py              Host inventory helpers
+    tools/                MCP tool modules
+  docs/                   Detailed setup and operational documentation
+  scripts/                Installation and smoke-test scripts
+  tests/                  Pytest suite
+  main.py                 Entry point
+  pyproject.toml          Package metadata and tool configuration
+```
 
-**Comandos bloqueados** (solo lo irreversiblemente catastrófico):
+## Security Notes
 
-| Comando | Razón |
-|---|---|
-| `format c/d/e:` | Destrucción de partición |
-| Herramientas de particionado | Manipulación de tabla de particiones |
-| `mimikatz` | Credential dumping / ataque |
-| Comandos de apagado | Apagado accidental del sistema |
+SAPladdin is an operator tool. It can touch real systems, execute commands and query real infrastructure.
 
-Todo lo demás está disponible: `icacls`, `takeown`, `reg add/delete`, `netsh`, `net user`, `net localgroup`, `iptables`, `gcloud`...
+Use it with the same care you would apply to a privileged terminal session:
 
-**Ficheros de credenciales** (en `.gitignore`, nunca al repo):
-- `config/hosts.yaml`
-- `config/hana_config.yaml`
-- `config/gcloud_config.yaml`
-- `config/joplin_config.yaml`
-- `config/security_config.yaml`
+- keep credentials in local ignored config files;
+- review permissions before enabling write/delete operations;
+- prefer read-only database users where possible;
+- validate commands before running them against production hosts;
+- keep destructive operations behind explicit confirmation;
+- treat MCP clients as part of your operational trust boundary.
 
-**Confirmaciones explícitas requeridas:**
-- DML en Oracle/MSSQL → `confirm_dml=True`
-- DDL en HANA → `confirm=True`
-- Delete de notas Joplin → `confirm=True`
+The repository intentionally ignores the main local credential/config files. Keep it that way.
 
----
+## Testing
 
-## Tests
+Run the test suite with:
 
 ```bat
 .venv\Scripts\python.exe -m pytest tests\ -q
 ```
 
-Suite actual esperada: `30 passed`.
+Install development dependencies first if needed:
 
----
+```bat
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
+```
 
-## Stack
+## Technology Stack
 
-Python 3.11+ · fastmcp · paramiko · oracledb · pyodbc · hdbcli · psutil · gcloud CLI
+- Python 3.11+
+- FastMCP
+- Paramiko
+- psutil
+- PyYAML
+- OracleDB Python driver
+- pyodbc
+- SAP HANA `hdbcli`
+- Google Cloud CLI
+- Joplin Web Clipper API
 
----
+## Documentation
 
-## Basado en
+| Document | Description |
+|---|---|
+| [`docs/CLIENT_SETUP.md`](docs/CLIENT_SETUP.md) | Client-specific MCP setup for Codex, Claude Desktop, Claude Code, Cursor, LM Studio and HTTP/SSE usage. |
+| [`docs/CONTEXT.md`](docs/CONTEXT.md) | Operational context, tool inventory, architecture notes and known decisions. |
+| [`docs/SAPladdin_MCP_Informe_A4H_20260330.md`](docs/SAPladdin_MCP_Informe_A4H_20260330.md) | Example real-world SAP/GCP capability report. |
+| [`docs/assets/sapladdin-mcp-infografia.svg`](docs/assets/sapladdin-mcp-infografia.svg) | Repository infographic source asset. |
 
-[DesktopCommanderPy](https://github.com/eduardoddddddd/DesktopCommanderPy)
+## Status
 
-## Licencia
+SAPladdin is an evolving personal infrastructure MCP server. It is best understood as an operator-grade integration layer rather than a polished SaaS product.
+
+The public repository documents the architecture and reusable patterns, while real credentials and workstation-specific configuration remain local.
+
+## License
 
 MIT
+
+## Credits
+
+SAPladdin is based on operational ideas and patterns from [DesktopCommanderPy](https://github.com/eduardoddddddd/DesktopCommanderPy), extended toward SAP Basis, database administration, Google Cloud and Joplin-backed operational knowledge management.
