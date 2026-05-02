@@ -5,14 +5,9 @@
 Conecta Claude o cualquier cliente MCP compatible a sistemas reales: filesystem local, procesos, SSH, SAP Basis, Oracle, SQL Server, HANA Cloud y Google Compute Engine vía `gcloud`.
 
 ## Infografía
+<img width="2048" height="1152" alt="image" src="https://github.com/user-attachments/assets/d93150ad-c687-4f04-b59d-18a37fbdb8ec" />
 
-> La infografía es 16:9 y bastante densa. En el README se muestra como preview; pulsa sobre ella para abrirla a tamaño completo.
 
-<p align="center">
-  <a href="docs/assets/sapladdin-mcp-infografia.svg">
-    <img src="docs/assets/sapladdin-mcp-infografia.svg" alt="SAPladdin MCP para LLMs" width="100%">
-  </a>
-</p>
 
 Guía de conexión a clientes MCP y LLM apps:
 
