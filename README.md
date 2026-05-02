@@ -6,7 +6,13 @@ Conecta Claude o cualquier cliente MCP compatible a sistemas reales: filesystem 
 
 ## Infografía
 
-![SAPladdin MCP para LLMs](docs/assets/sapladdin-mcp-infografia.svg)
+> La infografía es 16:9 y bastante densa. En el README se muestra como preview; pulsa sobre ella para abrirla a tamaño completo.
+
+<p align="center">
+  <a href="docs/assets/sapladdin-mcp-infografia.svg">
+    <img src="docs/assets/sapladdin-mcp-infografia.svg" alt="SAPladdin MCP para LLMs" width="100%">
+  </a>
+</p>
 
 Guía de conexión a clientes MCP y LLM apps:
 
