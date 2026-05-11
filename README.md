@@ -1,5 +1,7 @@
 # SAPladdin
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/eduardoddddddd/SAPladdin)
+
 **Idioma:** Español | [English](README.en.md)
 
 **SAPladdin** es un servidor **MCP** construido en Python/FastMCP para operación técnica real sobre SAP Basis, administración Linux/Windows, Google Cloud, Joplin y bases de datos empresariales como SAP HANA, Oracle y SQL Server.
